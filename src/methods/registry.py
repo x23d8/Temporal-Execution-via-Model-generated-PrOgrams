@@ -6,6 +6,7 @@ from typing import Any, Callable
 
 from ..data.schema import Sample
 from ..models.base import ChatLM
+from .extract_normalize import ExtractNormalizeMethod
 from .few_shot import FewShotMethod, fixed_shots
 from .symbolic_cot import SymbolicCoTMethod
 from .zero_shot import ZeroShotMethod
@@ -36,10 +37,18 @@ def build_symbolic_cot(model: ChatLM, **kwargs: Any) -> SymbolicCoTMethod:
     )
 
 
+def build_extract_normalize(model: ChatLM, **kwargs: Any) -> ExtractNormalizeMethod:
+    return ExtractNormalizeMethod(
+        model=model,
+        enable_thinking=kwargs.get("enable_thinking", False),
+    )
+
+
 METHOD_BUILDERS: dict[str, Callable[..., Any]] = {
     "zero_shot": build_zero_shot,
     "few_shot": build_few_shot,
     "symbolic_cot": build_symbolic_cot,
+    "extract_normalize": build_extract_normalize,
 }
 
 

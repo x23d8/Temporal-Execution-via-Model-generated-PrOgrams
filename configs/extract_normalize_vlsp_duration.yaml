@@ -1,0 +1,14 @@
+experiment_name: extract_normalize_vlsp_duration
+method: extract_normalize
+dataset: vlsp_duration
+seed: 42
+model_name: Qwen/Qwen3.5-9B
+dtype: bfloat16
+enable_thinking: false
+k_shot: 0
+max_samples: 1500
+output_dir: outputs
+progress_every: 50
+verbose: false
+verbose_first_n: 5
+running_score_every: 100

@@ -24,6 +24,7 @@ class QwenConfig:
     device_map: str | None = "auto"
     trust_remote_code: bool = True
     use_flash_attention: bool = True   # Flash Attention 2 — A100/H100 only
+    load_in_4bit: bool = False         # 4-bit NF4 quant — 9B → ~4.5 GB, fits any GPU
     load_kwargs: dict[str, Any] = field(default_factory=dict)
 
 
@@ -50,12 +51,22 @@ class QwenChatLM:
         )
 
         extra: dict[str, Any] = {}
-        if self.config.use_flash_attention:
+
+        if self.config.load_in_4bit:
+            from transformers import BitsAndBytesConfig
+            extra["quantization_config"] = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_compute_dtype=torch_dtype,
+                bnb_4bit_use_double_quant=True,
+                bnb_4bit_quant_type="nf4",
+            )
+            # 4-bit models must use device_map; flash_attn not compatible with bnb
+        elif self.config.use_flash_attention:
             try:
                 import flash_attn  # noqa: F401
                 extra["attn_implementation"] = "flash_attention_2"
             except ImportError:
-                pass  # flash_attn not installed — fall back silently
+                pass
 
         self._model = AutoModelForCausalLM.from_pretrained(
             self.config.model_name,
@@ -66,6 +77,28 @@ class QwenChatLM:
             **self.config.load_kwargs,
         )
         self._model.eval()
+
+        # Diagnostic: show where each layer ended up so CPU offload is visible
+        import torch
+        if torch.cuda.is_available():
+            allocated = torch.cuda.memory_allocated() / 1e9
+            reserved = torch.cuda.memory_reserved() / 1e9
+            total = torch.cuda.get_device_properties(0).total_memory / 1e9
+            quant = "4-bit" if self.config.load_in_4bit else self.config.dtype
+            print(
+                f"[QwenChatLM] loaded {self.config.model_name} ({quant}) | "
+                f"GPU: {allocated:.1f} GB allocated / {reserved:.1f} GB reserved / "
+                f"{total:.1f} GB total"
+            )
+            if hasattr(self._model, "hf_device_map"):
+                unique = set(str(d) for d in self._model.hf_device_map.values())
+                if "cpu" in unique:
+                    print(
+                        "[QwenChatLM] ⚠️  Some layers on CPU! "
+                        "Enable load_in_4bit=True or use a smaller model."
+                    )
+        else:
+            print("[QwenChatLM] ⚠️  CUDA not available — running on CPU (very slow).")
 
     def generate(
         self,
@@ -80,6 +113,7 @@ class QwenChatLM:
             self.load()
         import torch
 
+        device = "cuda" if torch.cuda.is_available() else "cpu"
         chat = [{"role": m.role, "content": m.content} for m in messages]
         prompt_text = self._tokenizer.apply_chat_template(
             chat,
@@ -87,7 +121,7 @@ class QwenChatLM:
             add_generation_prompt=True,
             enable_thinking=enable_thinking,
         )
-        inputs = self._tokenizer(prompt_text, return_tensors="pt").to(self._model.device)
+        inputs = self._tokenizer(prompt_text, return_tensors="pt").to(device)
 
         # Stop tại <|im_end|> (end-of-turn) lẫn <|endoftext|> để tránh garbage tokens
         eos_ids = [self._tokenizer.eos_token_id]
@@ -139,10 +173,11 @@ class QwenChatLM:
             for msgs in messages_list
         ]
 
+        device = "cuda" if torch.cuda.is_available() else "cpu"
         self._tokenizer.padding_side = "left"
         inputs = self._tokenizer(
             prompts, return_tensors="pt", padding=True
-        ).to(self._model.device)
+        ).to(device)
 
         eos_ids = [self._tokenizer.eos_token_id]
         im_end_id = self._tokenizer.convert_tokens_to_ids("<|im_end|>")

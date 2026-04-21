@@ -277,8 +277,11 @@ def run(
         Path(cfg.output_dir) / "summary.csv",
         _summary_row(cfg, metrics, avg_t, len(samples)),
     )
+    extra_info = ""
+    if hasattr(method, "rule_ratio"):
+        extra_info = f" rule_solved={method.rule_ratio:.1%}"
     print(f"[runner] done. metrics: {json.dumps(metrics, ensure_ascii=False)} "
-          f"avg_time={avg_t:.3f}s -> {out_dir}")
+          f"avg_time={avg_t:.3f}s{extra_info} -> {out_dir}")
     return metrics_payload
 
 
