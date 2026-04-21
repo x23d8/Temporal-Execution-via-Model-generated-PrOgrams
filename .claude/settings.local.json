@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(python -c ' *)",
-      "Bash(python notebooks/_patch_model.py)"
+      "Bash(python notebooks/_patch_model.py)",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('src/models/qwen.py', encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\")"
     ]
   }
 }

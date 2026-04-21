@@ -1,6 +1,5 @@
 """Symbolic execution engine cho LLM-generated temporal programs.
 
-Pipeline từ note.txt §2.3–2.5:
 - Layer 3 (Program Synthesis): extract_code_block + clean_code chuẩn bị code LLM sinh ra
 - Layer 4 (Symbolic Execution): execute_program chạy code trong sandbox datetime
 - Layer 5 (Verification): verify_answer kiểm tra tính hợp lệ của kết quả

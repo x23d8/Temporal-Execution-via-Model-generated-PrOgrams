@@ -78,10 +78,17 @@ class QwenChatLM:
         )
         inputs = self._tokenizer(prompt_text, return_tensors="pt").to(self._model.device)
 
+        # Stop tại <|im_end|> (end-of-turn) lẫn <|endoftext|> để tránh garbage tokens
+        eos_ids = [self._tokenizer.eos_token_id]
+        im_end_id = self._tokenizer.convert_tokens_to_ids("<|im_end|>")
+        if im_end_id not in (self._tokenizer.unk_token_id, self._tokenizer.eos_token_id):
+            eos_ids.append(im_end_id)
+
         gen_kwargs: dict[str, Any] = {
             "max_new_tokens": max_new_tokens,
             "do_sample": do_sample,
             "pad_token_id": self._tokenizer.eos_token_id,
+            "eos_token_id": eos_ids,
         }
         if do_sample:
             gen_kwargs["temperature"] = temperature
