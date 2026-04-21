@@ -1,0 +1,17 @@
+experiment_name: symbolic_cot_bigbench_date
+method: symbolic_cot
+dataset: bigbench_date
+seed: 42
+model_name: Qwen/Qwen3.5-9B
+dtype: bfloat16
+enable_thinking: false
+k_shot: 0
+max_samples: default        # = toàn bộ 369 examples
+output_dir: outputs
+progress_every: 50
+verbose: false
+verbose_first_n: 5
+running_score_every: 100
+# symbolic_cot specific
+n_hypotheses: 1             # tăng lên 3 nếu cần multi-hypothesis voting (chậm hơn 3x)
+max_correction_attempts: 1  # 0 = không có self-correction loop
