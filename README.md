@@ -361,7 +361,7 @@ Test integration cho 4 loader sẽ **skip tự động** nếu `Dataset/Raw/` kh
 
 ---
 
-## Giấy phép & nguồn dataset
+## Licens and Datasets
 
 - **UDST-DurationQA** — [Original repo](https://github.com/UBC-NLP/UDST) (license theo tác giả).
 - **BigBench DateUnderstanding** — [BIG-bench](https://github.com/google/BIG-bench) (Apache-2.0).
