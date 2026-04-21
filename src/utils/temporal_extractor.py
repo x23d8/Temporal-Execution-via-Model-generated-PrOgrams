@@ -58,7 +58,7 @@ def _safe_date(y: int, m: int, d: int) -> datetime.date | None:
         return None
 
 
-def _extract_dates_en(text: str) -> list[datetime.date]:
+def _extract_dates_en(text: str, uk_fmt: bool = False) -> list[datetime.date]:
     found: list[datetime.date] = []
     for m in _P_MNAME_DY.finditer(text):
         mo = _MONTH_EN.get(m.group(1).lower())
@@ -73,7 +73,11 @@ def _extract_dates_en(text: str) -> list[datetime.date]:
             if d:
                 found.append(d)
     for m in _P_MDY.finditer(text):
-        d = _safe_date(int(m.group(3)), int(m.group(1)), int(m.group(2)))
+        if uk_fmt:
+            # DD/MM/YYYY → swap day and month
+            d = _safe_date(int(m.group(3)), int(m.group(2)), int(m.group(1)))
+        else:
+            d = _safe_date(int(m.group(3)), int(m.group(1)), int(m.group(2)))
         if d:
             found.append(d)
     for m in _P_YMD.finditer(text):
@@ -93,12 +97,16 @@ def _extract_dates_en(text: str) -> list[datetime.date]:
 # e.g. "yesterday was [DATE]" → today = DATE + 1
 
 _ANCHOR_LABELS_EN: list[tuple[re.Pattern, int | None]] = [
+    # "today is in fact [DATE]" — explicit correction override, must be first
+    (re.compile(r"\btoday\s+is\s+in\s+fact\b", re.I), 0),
     (re.compile(r"\bthe\s+day\s+before\s+yesterday\s+(?:was|is)\b", re.I), +2),
     (re.compile(r"\byesterday\s+(?:was|is)\b", re.I), +1),
     (re.compile(r"\btoday\s+(?:was|is|it\s+is)\b", re.I), 0),
     (re.compile(r"\bit\s+is\s+today\b", re.I), 0),
     (re.compile(r"\btoday\b.*\bis\b", re.I), 0),   # "Today, [date], is ..."
     (re.compile(r"\btomorrow\s+(?:will\s+be|is)\b", re.I), -1),
+    # "booked a flight for tomorrow, March 5, 2021" → today = March 4
+    (re.compile(r"\bfor\s+tomorrow\b", re.I), -1),
     (re.compile(r"\bthe\s+day\s+after\s+tomorrow\s+(?:will\s+be|is)\b", re.I), -2),
     # "N days ago was [DATE]"  or  "in N days it will be [DATE]"
     (re.compile(r"\b(\d+)\s+days?\s+ago\s+(?:was|is)\b", re.I), None),
@@ -107,6 +115,16 @@ _ANCHOR_LABELS_EN: list[tuple[re.Pattern, int | None]] = [
 
 
 def _find_today_en(text: str, dates: list[datetime.date]) -> datetime.date | None:
+    # "2015 is coming in 36 hours" → today = Jan 1, 2015 - ceil(36/24) days
+    m = re.search(r"\b(\d{4})\s+is\s+coming\s+in\s+(\d+)\s+hours?\b", text, re.I)
+    if m:
+        try:
+            jan1 = datetime.date(int(m.group(1)), 1, 1)
+            days_before = (int(m.group(2)) + 23) // 24
+            return jan1 - datetime.timedelta(days=days_before)
+        except ValueError:
+            pass
+
     if not dates:
         return None
     for pat, offset in _ANCHOR_LABELS_EN:
@@ -220,6 +238,17 @@ def _phrase_to_delta(phrase: str) -> int | None:
         n = int(m.group(1)) if m.group(1) else 1
         return -n * 7 if m.group(2) == "ago" else n * 7
 
+    # "N hours later / from now / after today"
+    m = re.match(r"(\d+)\s+hours?\s+(?:later|from\s+(?:now|today)|after\s+(?:today|now))", p)
+    if m:
+        return round(int(m.group(1)) / 24)
+
+    # "N hours ago"
+    m = re.match(r"(\d+)\s+hours?\s+ago", p)
+    if m:
+        return -round(int(m.group(1)) / 24)
+
+    # "a month ago" — let relativedelta handle; return None to bubble up
     return None  # needs relativedelta or is ambiguous
 
 
@@ -618,6 +647,18 @@ _ACTIVITY_VI: dict[str, tuple[float, float]] = {
     "tập thể dục": (300, 14400),
     "yoga": (600, 7200),
     "thiền": (300, 7200),
+    "chụp ảnh": (300, 86400),
+    "nhiếp ảnh": (300, 86400),
+    "liên hệ": (60, 3600),
+    "gọi điện": (30, 7200),
+    "nhắn tin": (5, 3600),
+    "viết": (300, 86400),
+    "đọc báo": (300, 7200),
+    "xem tin tức": (300, 7200),
+    "tập gym": (1800, 7200),
+    "chơi thể thao": (1800, 14400),
+    "mua sắm": (1800, 28800),
+    "nấu bữa": (300, 7200),
 }
 
 
@@ -639,6 +680,46 @@ def _match_activity(context: str, question: str) -> tuple[float, float] | None:
             best = _intersect(best, rng) if best else rng
 
     return best
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Nth-visit / periodic-event counting
+# ═══════════════════════════════════════════════════════════════════════════════
+
+_P_NTH_VISIT = re.compile(
+    r"(\d+)(?:st|nd|rd|th)\s+(?:visit|trip|appointment|time)\b"
+    r"(?:[^.]*?(?:start(?:ing|ed)?\s+(?:from\s+|in\s+)?)?)?"
+    r"(?:\bon\s+)?(" + _MNAMES + r")\.?\s+(\d{4})"
+    r"[^.]*?every\s+(week|month|year|day)",
+    re.I,
+)
+
+
+def _check_nth_visit(question: str) -> datetime.date | None:
+    """'5th visit starting from October 2009, every month' → Oct 2009 + 4 months."""
+    m = _P_NTH_VISIT.search(question)
+    if not m:
+        return None
+    n = int(m.group(1)) - 1
+    start_mo = _MONTH_EN.get(m.group(2).lower())
+    if not start_mo:
+        return None
+    try:
+        year = int(m.group(3))
+        unit = m.group(4).lower()
+        start = datetime.date(year, start_mo, 1)
+        from dateutil.relativedelta import relativedelta
+        if unit == "month":
+            return start + relativedelta(months=n)
+        elif unit == "week":
+            return start + datetime.timedelta(weeks=n)
+        elif unit == "year":
+            return start + relativedelta(years=n)
+        elif unit == "day":
+            return start + datetime.timedelta(days=n)
+    except (ValueError, ImportError):
+        pass
+    return None
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -668,13 +749,32 @@ def solve_date_arith(sample: dict) -> str | None:
         return _solve_vi_date(sample)
 
     # ── English path ──────────────────────────────────────────────────────────
-    text = (sample.get("context") or "") + " " + sample.get("question", "")
-    dates = _extract_dates_en(text)
+    question = sample.get("question", "")
+    text = (sample.get("context") or "") + " " + question
+
+    # UK/European date format: DD/MM/YYYY instead of MM/DD/YYYY
+    uk_fmt = bool(re.search(
+        r"\b(?:UK|British|European?)\b[^.]*?\bformat\b|\bDD/MM\b|\bdd/mm\b",
+        text, re.I
+    ))
+
+    # "first day of YEAR" — direct target resolution
+    m_first = re.search(r"\bfirst\s+day\s+of\s+(\d{4})\b", question, re.I)
+    if m_first:
+        try:
+            return _fmt_en(datetime.date(int(m_first.group(1)), 1, 1))
+        except ValueError:
+            pass
+
+    # "Nth visit/trip/appointment … [MONTH YEAR] … every [unit]"
+    nth = _check_nth_visit(question)
+    if nth:
+        return _fmt_en(nth)
+
+    dates = _extract_dates_en(text, uk_fmt=uk_fmt)
     today = _find_today_en(text, dates)
     if today is None:
         return None
-
-    question = sample.get("question", "")
 
     # 1. Weekday navigation (last/next Monday …)
     wd_result = _parse_target_weekday_en(question, today)

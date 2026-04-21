@@ -16,13 +16,30 @@ Interface: predict(sample) -> str   (identical to all other methods)
 
 from __future__ import annotations
 
-from typing import Any
-
 from ..data.schema import Sample
 from ..models.base import ChatLM, ChatMessage
 from ..prompts.templates import build_messages
 from ..utils.temporal_extractor import solve_date_arith, solve_duration
 from .base import gen_kwargs_for
+
+# CoT prompts for date_arith fallback — allows step-by-step reasoning.
+# The extractor finds the first MM/DD/YYYY (or Tháng M, YYYY) anywhere in output,
+# so CoT text before the final answer is harmless and helps accuracy.
+_COT_SYS_EN = (
+    "You are a precise date arithmetic solver. "
+    "Work step-by-step:\n"
+    "Step 1: Identify the reference/anchor date from the context.\n"
+    "Step 2: Compute the required date offset.\n"
+    "Step 3: Write ONLY the final date on its own line in MM/DD/YYYY format."
+)
+
+_COT_SYS_VI = (
+    "Bạn là bộ giải toán ngày tháng chính xác. "
+    "Làm từng bước:\n"
+    "Bước 1: Xác định ngày tham chiếu từ ngữ cảnh.\n"
+    "Bước 2: Tính khoảng thời gian cần thiết.\n"
+    "Bước 3: Viết kết quả cuối cùng trên một dòng riêng theo mẫu 'Tháng M, YYYY'."
+)
 
 
 class ExtractNormalizeMethod:
@@ -66,7 +83,23 @@ class ExtractNormalizeMethod:
     # ── Fallback ──────────────────────────────────────────────────────────────
 
     def _llm_fallback(self, sample: Sample) -> str:
-        msgs = build_messages(sample, shots=())  # zero-shot
-        kwargs = gen_kwargs_for(sample["task"])
+        task = sample["task"]
+
+        if task == "date_arith":
+            # CoT fallback: allow step-by-step reasoning, extractor tolerates it
+            lang = sample.get("language", "en")
+            sys_content = _COT_SYS_VI if lang == "vi" else _COT_SYS_EN
+            ctx = sample.get("context") or ""
+            q = sample.get("question", "")
+            user_content = f"{ctx}\n{q}".strip() if ctx else q
+            msgs = [
+                ChatMessage(role="system", content=sys_content),
+                ChatMessage(role="user", content=user_content),
+            ]
+            kwargs = {"max_new_tokens": 150, "do_sample": False, "temperature": 0.0}
+        else:
+            msgs = build_messages(sample, shots=())
+            kwargs = gen_kwargs_for(task)
+
         kwargs["enable_thinking"] = self.enable_thinking
         return self.model.generate(msgs, **kwargs)

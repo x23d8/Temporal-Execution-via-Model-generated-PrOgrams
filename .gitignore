@@ -144,3 +144,8 @@ lightning_logs/
 *.bak
 *.backup
 finetune
+
+# ============================================================================
+# EXPERIMENT AREA (local prototyping, not for review)
+# ============================================================================
+experiment_area/
