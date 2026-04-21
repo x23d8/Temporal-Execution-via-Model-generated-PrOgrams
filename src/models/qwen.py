@@ -68,9 +68,20 @@ class QwenChatLM:
             except ImportError:
                 pass
 
+        # Pre-load CUDA diagnostic
+        import torch as _torch
+        if not _torch.cuda.is_available():
+            print("[QwenChatLM] ⚠️  CUDA not available before model load — check GPU runtime!")
+        else:
+            free, total = _torch.cuda.mem_get_info(0)
+            print(
+                f"[QwenChatLM] GPU detected: {_torch.cuda.get_device_name(0)} | "
+                f"Free VRAM: {free/1e9:.1f} GB / {total/1e9:.1f} GB"
+            )
+
         self._model = AutoModelForCausalLM.from_pretrained(
             self.config.model_name,
-            torch_dtype=torch_dtype,
+            dtype=torch_dtype,          # `torch_dtype` is deprecated → use `dtype`
             device_map=self.config.device_map,
             trust_remote_code=self.config.trust_remote_code,
             **extra,
