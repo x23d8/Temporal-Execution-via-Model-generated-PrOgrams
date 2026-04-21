@@ -104,15 +104,14 @@ Temporal_Reasoning/
 │   └── run_phase1_colab.ipynb  # 5 setup + 12 experiment + 3 debug cells
 ├── tests/
 ├── requirements.txt
-├── CLAUDE.md
-└── README.md
+=└── README.md
 ```
 
 ---
 
 ## Cài đặt cục bộ
 
-Dùng Python 3.10+ (đã test với 3.13).
+Dùng Python 3.10+ 
 
 ```bash
 git clone <repo_url> Temporal_Reasoning
