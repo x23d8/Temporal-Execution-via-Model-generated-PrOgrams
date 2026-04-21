@@ -55,6 +55,7 @@ class RunConfig:
     # symbolic_cot controls (bỏ qua với zero_shot / few_shot)
     n_hypotheses: int = 1            # số chương trình độc lập mỗi sample
     max_correction_attempts: int = 1 # số lần self-correction nếu execution fail
+    inference_batch_size: int = 1    # batch N samples per generate() call (symbolic_cot only)
 
 
 def load_config(path: str | Path) -> RunConfig:
@@ -190,27 +191,63 @@ def run(
     records: list[dict] = []
     times: list[float] = []
     n = len(samples)
-    for i, sample in enumerate(samples):
-        with timer() as t:
-            raw = method.predict(sample)
-        elapsed = t["elapsed"]
-        times.append(elapsed)
-        rec = build_record(sample, raw, elapsed)
-        records.append(rec)
 
-        if cfg.verbose:
-            in_first_n = i < cfg.verbose_first_n
-            periodic = cfg.verbose_every > 0 and ((i + 1) % cfg.verbose_every == 0)
-            if in_first_n or periodic:
-                _log_sample(i, n, rec, full=in_first_n)
+    use_batch = (
+        cfg.inference_batch_size > 1
+        and hasattr(method, "predict_batch")
+    )
+    if use_batch:
+        print(f"[runner] batch inference: batch_size={cfg.inference_batch_size}")
 
-        if cfg.running_score_every > 0 and (i + 1) % cfg.running_score_every == 0:
-            print(
-                f"  [{i+1}/{n}] running: {_running_score(records, task)} "
-                f"avg_time={sum(times)/len(times):.3f}s"
-            )
-        elif (not cfg.verbose) and (i + 1) % cfg.progress_every == 0:
-            print(f"  [{i+1}/{n}] avg={sum(times)/len(times):.3f}s")
+    i = 0
+    while i < n:
+        if use_batch:
+            batch = samples[i : i + cfg.inference_batch_size]
+            with timer() as t:
+                raws = method.predict_batch(batch)
+            batch_elapsed = t["elapsed"]
+            per_sample_elapsed = batch_elapsed / len(batch)
+            for j, (sample, raw) in enumerate(zip(batch, raws)):
+                times.append(per_sample_elapsed)
+                rec = build_record(sample, raw, per_sample_elapsed)
+                records.append(rec)
+                idx = i + j
+                if cfg.verbose:
+                    in_first_n = idx < cfg.verbose_first_n
+                    periodic = cfg.verbose_every > 0 and ((idx + 1) % cfg.verbose_every == 0)
+                    if in_first_n or periodic:
+                        _log_sample(idx, n, rec, full=in_first_n)
+                if cfg.running_score_every > 0 and (idx + 1) % cfg.running_score_every == 0:
+                    print(
+                        f"  [{idx+1}/{n}] running: {_running_score(records, task)} "
+                        f"avg_time={sum(times)/len(times):.3f}s"
+                    )
+                elif (not cfg.verbose) and (idx + 1) % cfg.progress_every == 0:
+                    print(f"  [{idx+1}/{n}] avg={sum(times)/len(times):.3f}s")
+            i += len(batch)
+        else:
+            sample = samples[i]
+            with timer() as t:
+                raw = method.predict(sample)
+            elapsed = t["elapsed"]
+            times.append(elapsed)
+            rec = build_record(sample, raw, elapsed)
+            records.append(rec)
+
+            if cfg.verbose:
+                in_first_n = i < cfg.verbose_first_n
+                periodic = cfg.verbose_every > 0 and ((i + 1) % cfg.verbose_every == 0)
+                if in_first_n or periodic:
+                    _log_sample(i, n, rec, full=in_first_n)
+
+            if cfg.running_score_every > 0 and (i + 1) % cfg.running_score_every == 0:
+                print(
+                    f"  [{i+1}/{n}] running: {_running_score(records, task)} "
+                    f"avg_time={sum(times)/len(times):.3f}s"
+                )
+            elif (not cfg.verbose) and (i + 1) % cfg.progress_every == 0:
+                print(f"  [{i+1}/{n}] avg={sum(times)/len(times):.3f}s")
+            i += 1
 
     task = samples[0]["task"]
     language = samples[0]["language"]

@@ -15,3 +15,4 @@ running_score_every: 100
 # symbolic_cot specific
 n_hypotheses: 1
 max_correction_attempts: 1
+inference_batch_size: 4

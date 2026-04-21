@@ -23,6 +23,7 @@ class QwenConfig:
     dtype: str = "bfloat16"  # "float16" | "bfloat16" | "float32"
     device_map: str | None = "auto"
     trust_remote_code: bool = True
+    use_flash_attention: bool = True   # Flash Attention 2 — A100/H100 only
     load_kwargs: dict[str, Any] = field(default_factory=dict)
 
 
@@ -47,11 +48,21 @@ class QwenChatLM:
             self.config.model_name,
             trust_remote_code=self.config.trust_remote_code,
         )
+
+        extra: dict[str, Any] = {}
+        if self.config.use_flash_attention:
+            try:
+                import flash_attn  # noqa: F401
+                extra["attn_implementation"] = "flash_attention_2"
+            except ImportError:
+                pass  # flash_attn not installed — fall back silently
+
         self._model = AutoModelForCausalLM.from_pretrained(
             self.config.model_name,
             torch_dtype=torch_dtype,
             device_map=self.config.device_map,
             trust_remote_code=self.config.trust_remote_code,
+            **extra,
             **self.config.load_kwargs,
         )
         self._model.eval()
@@ -99,3 +110,60 @@ class QwenChatLM:
         new_tokens = output_ids[0, inputs["input_ids"].shape[1]:]
         text = self._tokenizer.decode(new_tokens, skip_special_tokens=True)
         return text
+
+    def generate_batch(
+        self,
+        messages_list: list[list[ChatMessage]],
+        *,
+        max_new_tokens: int = 64,
+        temperature: float = 0.0,
+        do_sample: bool = False,
+        enable_thinking: bool = False,
+    ) -> list[str]:
+        """Batch generation — left-pads inputs, single CUDA kernel launch per batch.
+
+        All messages_list entries are processed together. Caller is responsible
+        for grouping by compatible max_new_tokens if needed.
+        """
+        if self._model is None or self._tokenizer is None:
+            self.load()
+        import torch
+
+        prompts = [
+            self._tokenizer.apply_chat_template(
+                [{"role": m.role, "content": m.content} for m in msgs],
+                tokenize=False,
+                add_generation_prompt=True,
+                enable_thinking=enable_thinking,
+            )
+            for msgs in messages_list
+        ]
+
+        self._tokenizer.padding_side = "left"
+        inputs = self._tokenizer(
+            prompts, return_tensors="pt", padding=True
+        ).to(self._model.device)
+
+        eos_ids = [self._tokenizer.eos_token_id]
+        im_end_id = self._tokenizer.convert_tokens_to_ids("<|im_end|>")
+        if im_end_id not in (self._tokenizer.unk_token_id, self._tokenizer.eos_token_id):
+            eos_ids.append(im_end_id)
+
+        gen_kwargs: dict[str, Any] = {
+            "max_new_tokens": max_new_tokens,
+            "do_sample": do_sample,
+            "pad_token_id": self._tokenizer.eos_token_id,
+            "eos_token_id": eos_ids,
+        }
+        if do_sample:
+            gen_kwargs["temperature"] = temperature
+
+        with torch.inference_mode():
+            output_ids = self._model.generate(**inputs, **gen_kwargs)
+
+        prompt_len = inputs["input_ids"].shape[1]
+        results = []
+        for out in output_ids:
+            new_tokens = out[prompt_len:]
+            results.append(self._tokenizer.decode(new_tokens, skip_special_tokens=True))
+        return results

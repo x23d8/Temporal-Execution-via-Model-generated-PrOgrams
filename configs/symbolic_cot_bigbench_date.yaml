@@ -15,3 +15,4 @@ running_score_every: 100
 # symbolic_cot specific
 n_hypotheses: 1             # tăng lên 3 nếu cần multi-hypothesis voting (chậm hơn 3x)
 max_correction_attempts: 1  # 0 = không có self-correction loop
+inference_batch_size: 4     # batch N samples per generate() — tăng nếu VRAM đủ (A100: 4–8)

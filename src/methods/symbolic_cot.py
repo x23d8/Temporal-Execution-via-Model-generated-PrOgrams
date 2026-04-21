@@ -256,6 +256,83 @@ class SymbolicCoTMethod:
         return last_answer
 
     # ------------------------------------------------------------------
+    # Batch predict (n_hypotheses=1 only — used by runner batch mode)
+    # ------------------------------------------------------------------
+
+    def predict_batch(self, samples: list[Sample]) -> list[str]:
+        """Process a batch of samples with a single generate_batch() call each step.
+
+        Falls back to predict() per-sample when n_hypotheses > 1.
+        """
+        if self.n_hypotheses > 1 or not hasattr(self.model, "generate_batch"):
+            return [self.predict(s) for s in samples]
+
+        # Step 1 — batch synthesize programs
+        msgs_list = []
+        metas: list[tuple[str, str]] = []
+        for sample in samples:
+            task, lang = sample["task"], sample["language"]
+            sys_p = _SYNTHESIS_SYSTEM.get((task, lang), _SYNTHESIS_SYSTEM[("date_arith", "en")])
+            msgs_list.append([
+                ChatMessage(role="system", content=sys_p),
+                ChatMessage(role="user", content=_synthesis_user(sample, task, lang)),
+            ])
+            metas.append((task, lang))
+
+        max_tok = max(200 if t == "duration" else 150 for t, _ in metas)
+        programs = self.model.generate_batch(
+            msgs_list,
+            max_new_tokens=max_tok,
+            temperature=0.0,
+            do_sample=False,
+            enable_thinking=False,
+        )
+
+        # Step 2 — execute all programs
+        results: list[str | None] = []
+        correction_queue: list[tuple[int, str, str, Sample, str, str]] = []
+
+        for i, (program, (task, lang), sample) in enumerate(zip(programs, metas, samples)):
+            if not program.strip():
+                results.append(None)
+                continue
+            answer, error = execute_program(program, task, lang)
+            if answer is not None and verify_answer(answer, task, lang):
+                results.append(answer)
+            else:
+                results.append(None)
+                if error is not None and self.max_correction_attempts > 0:
+                    correction_queue.append((i, program, error, sample, task, lang))
+
+        # Step 3 — batch correct failed programs
+        if correction_queue:
+            corr_msgs = []
+            for _, prog, err, sample, task, lang in correction_queue:
+                sys_p = _CORRECTION_SYSTEM_VI if lang == "vi" else _CORRECTION_SYSTEM
+                corr_msgs.append([
+                    ChatMessage(role="system", content=sys_p),
+                    ChatMessage(role="user", content=_correction_user(prog, err, sample, lang)),
+                ])
+            corrected = self.model.generate_batch(
+                corr_msgs,
+                max_new_tokens=200,
+                temperature=0.0,
+                do_sample=False,
+                enable_thinking=False,
+            )
+            for (idx, _, _, _, task, lang), prog in zip(correction_queue, corrected):
+                if prog.strip():
+                    answer, _ = execute_program(prog, task, lang)
+                    if answer is not None:
+                        results[idx] = answer
+
+        # Step 4 — fallback for still-None items
+        final: list[str] = []
+        for result, sample in zip(results, samples):
+            final.append(result if result is not None else self._fallback(sample))
+        return final
+
+    # ------------------------------------------------------------------
     # Layer 3: Program Synthesis
     # ------------------------------------------------------------------
 
@@ -276,12 +353,14 @@ class SymbolicCoTMethod:
             ChatMessage(role="system", content=sys_prompt),
             ChatMessage(role="user", content=user_content),
         ]
+        # date_arith ≤15 lines ≈ 150 tok; duration ≤20 lines ≈ 200 tok
+        max_tok = 200 if task == "duration" else 150
         raw = self.model.generate(
             msgs,
-            max_new_tokens=512,
+            max_new_tokens=max_tok,
             temperature=temperature,
             do_sample=do_sample,
-            enable_thinking=False,  # giữ non-thinking cho tốc độ
+            enable_thinking=False,
         )
         return raw
 
@@ -305,7 +384,7 @@ class SymbolicCoTMethod:
         ]
         raw = self.model.generate(
             msgs,
-            max_new_tokens=512,
+            max_new_tokens=200,
             temperature=0.0,
             do_sample=False,
             enable_thinking=False,
