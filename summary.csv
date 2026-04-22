@@ -1,0 +1,13 @@
+timestamp,experiment,method,dataset,k_shot,enable_thinking,seed,model,num_samples,avg_inference_sec,metric,score,precision,recall,parse_fail
+2026-04-21T11:12:19,zero_shot_udst_duration,zero_shot,udst_duration,0,False,42,Qwen/Qwen3.5-9B,1500,0.1027,f1,0.5798,0.5706,0.5893,0
+2026-04-21T11:15:38,zero_shot_bigbench_date,zero_shot,bigbench_date,0,False,42,Qwen/Qwen3.5-9B,369,0.5398,accuracy,0.3496,0
+2026-04-21T11:29:30,zero_shot_vlsp_date,zero_shot,vlsp_date,0,False,42,Qwen/Qwen3.5-9B,1500,0.5543,accuracy,0.2653,0
+2026-04-21T11:32:02,zero_shot_vlsp_duration,zero_shot,vlsp_duration,0,False,42,Qwen/Qwen3.5-9B,1500,0.1016,f1,0.7257,0.719,0.7325,0
+2026-04-21T11:34:37,few_shot_udst_duration_k4,few_shot,udst_duration,4,False,42,Qwen/Qwen3.5-9B,1500,0.1031,f1,0.4722,0.6432,0.373,0
+2026-04-21T11:37:53,few_shot_bigbench_date_k3,few_shot,bigbench_date,3,False,42,Qwen/Qwen3.5-9B,369,0.5308,accuracy,0.355,8
+2026-04-21T11:51:41,few_shot_vlsp_date_k3,few_shot,vlsp_date,3,False,42,Qwen/Qwen3.5-9B,1500,0.5515,accuracy,0.3653,0
+2026-04-21T11:54:21,few_shot_vlsp_duration_k4,few_shot,vlsp_duration,4,False,42,Qwen/Qwen3.5-9B,1500,0.1068,f1,0.7407,0.7292,0.7527,0
+2026-04-21T12:40:41,symbolic_cot_udst_duration,symbolic_cot,udst_duration,0,False,42,Qwen/Qwen3.5-9B,1500,1.8534,f1,0.602,0.5151,0.7241,2
+2026-04-21T12:45:54,symbolic_cot_bigbench_date,symbolic_cot,bigbench_date,0,False,42,Qwen/Qwen3.5-9B,369,0.8481,accuracy,0.4932,0
+2026-04-21T13:11:09,symbolic_cot_vlsp_date,symbolic_cot,vlsp_date,0,False,42,Qwen/Qwen3.5-9B,1500,1.0097,accuracy,0.7907,13
+2026-04-21T14:40:21,symbolic_cot_vlsp_duration,symbolic_cot,vlsp_duration,0,False,42,Qwen/Qwen3.5-9B,1500,2.0505,f1,0.6824,0.5778,0.8333,7

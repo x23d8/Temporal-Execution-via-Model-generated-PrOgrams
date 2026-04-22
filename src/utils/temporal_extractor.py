@@ -326,7 +326,7 @@ def _solve_vi_date(sample: dict) -> str | None:
 
     # 2. Extract offset — try compound form first
     m_ym = _P_VI_YM.search(q)
-    if m_ym:
+    if m_ym: 
         years_off = int(m_ym.group(1))
         months_off = int(m_ym.group(2))
     else:

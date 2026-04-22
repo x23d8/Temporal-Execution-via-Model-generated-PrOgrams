@@ -34,6 +34,9 @@ def build_symbolic_cot(model: ChatLM, **kwargs: Any) -> SymbolicCoTMethod:
         enable_thinking=kwargs.get("enable_thinking", False),
         n_hypotheses=kwargs.get("n_hypotheses", 1),
         max_correction_attempts=kwargs.get("max_correction_attempts", 1),
+        use_planner=kwargs.get("use_planner", True),
+        use_kb_for_duration=kwargs.get("use_kb_for_duration", True),
+        use_retrospective_verify=kwargs.get("use_retrospective_verify", True),
     )
 
 

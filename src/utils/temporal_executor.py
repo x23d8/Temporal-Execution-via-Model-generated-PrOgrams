@@ -10,6 +10,7 @@ from __future__ import annotations
 import datetime
 import re
 import signal
+import threading
 from typing import Any
 
 # ---------------------------------------------------------------------------
@@ -77,14 +78,6 @@ def clean_code(code: str) -> str:
 # Symbolic execution
 # ---------------------------------------------------------------------------
 
-class _Timeout(Exception):
-    pass
-
-
-def _alarm_handler(signum: int, frame: Any) -> None:  # noqa: ANN401
-    raise _Timeout
-
-
 def execute_program(
     code: str,
     task: str = "",
@@ -93,34 +86,33 @@ def execute_program(
 ) -> tuple[str | None, str | None]:
     """Chạy LLM-generated program trong sandbox và trả về (answer, error).
 
+    Cross-platform timeout via threading (works on Windows, Linux, Mac).
     answer: chuỗi kết quả lấy từ biến `answer` trong program.
     error:  mô tả lỗi nếu execution thất bại, else None.
     """
     prepped = clean_code(extract_code_block(code))
     local_vars: dict[str, Any] = {}
+    error_container: list[str | None] = [None]
 
-    # Dùng SIGALRM để timeout (chỉ hoạt động trên Linux/Colab; Windows bỏ qua)
-    use_alarm = hasattr(signal, "SIGALRM")
-    try:
-        if use_alarm:
-            signal.signal(signal.SIGALRM, _alarm_handler)
-            signal.alarm(timeout_sec)
+    def _run() -> None:
+        try:
+            exec(  # noqa: S102
+                compile(prepped, "<temporal_program>", "exec"),
+                dict(SAFE_GLOBALS),
+                local_vars,
+            )
+        except Exception as exc:  # noqa: BLE001
+            error_container[0] = f"{type(exc).__name__}: {exc}"
 
-        exec(  # noqa: S102
-            compile(prepped, "<temporal_program>", "exec"),
-            dict(SAFE_GLOBALS),
-            local_vars,
-        )
+    thread = threading.Thread(target=_run, daemon=True)
+    thread.start()
+    thread.join(timeout_sec)
 
-        if use_alarm:
-            signal.alarm(0)
-
-    except _Timeout:
+    if thread.is_alive():
         return None, "Execution timed out"
-    except Exception as exc:  # noqa: BLE001
-        if use_alarm:
-            signal.alarm(0)
-        return None, f"{type(exc).__name__}: {exc}"
+
+    if error_container[0]:
+        return None, error_container[0]
 
     answer = local_vars.get("answer")
     if answer is None:

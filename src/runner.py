@@ -56,6 +56,9 @@ class RunConfig:
     n_hypotheses: int = 1            # số chương trình độc lập mỗi sample
     max_correction_attempts: int = 1 # số lần self-correction nếu execution fail
     inference_batch_size: int = 1    # batch N samples per generate() call (symbolic_cot only)
+    use_planner: bool = True                 # Layer 1: CoT planner
+    use_kb_for_duration: bool = True         # Layer 2B: KB hint for duration
+    use_retrospective_verify: bool = True    # Layer 5: retrospective verifier
 
 
 def load_config(path: str | Path) -> RunConfig:
