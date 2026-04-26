@@ -202,64 +202,75 @@ def run(
     if use_batch:
         print(f"[runner] batch inference: batch_size={cfg.inference_batch_size}")
 
-    i = 0
-    while i < n:
-        if use_batch:
-            batch = samples[i : i + cfg.inference_batch_size]
-            with timer() as t:
-                raws = method.predict_batch(batch)
-            batch_elapsed = t["elapsed"]
-            per_sample_elapsed = batch_elapsed / len(batch)
-            for j, (sample, raw) in enumerate(zip(batch, raws)):
-                times.append(per_sample_elapsed)
-                rec = build_record(sample, raw, per_sample_elapsed)
+    out_dir = Path(cfg.output_dir) / cfg.method / cfg.dataset
+    out_dir.mkdir(parents=True, exist_ok=True)
+    pred_path = out_dir / "predictions.jsonl"
+
+    existing = list(read_jsonl(pred_path)) if pred_path.exists() else []
+    records = existing
+    times = [r["elapsed_sec"] for r in existing]
+    i = len(existing)
+    if i:
+        print(f"[runner] resuming from sample {i}/{n} ({i} already saved, {n - i} remaining)")
+
+    with open(pred_path, "a" if i else "w", encoding="utf-8") as pred_f:
+        while i < n:
+            if use_batch:
+                batch = samples[i : i + cfg.inference_batch_size]
+                with timer() as t:
+                    raws = method.predict_batch(batch)
+                batch_elapsed = t["elapsed"]
+                per_sample_elapsed = batch_elapsed / len(batch)
+                for j, (sample, raw) in enumerate(zip(batch, raws)):
+                    times.append(per_sample_elapsed)
+                    rec = build_record(sample, raw, per_sample_elapsed)
+                    records.append(rec)
+                    pred_f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+                    pred_f.flush()
+                    idx = i + j
+                    if cfg.verbose:
+                        in_first_n = idx < cfg.verbose_first_n
+                        periodic = cfg.verbose_every > 0 and ((idx + 1) % cfg.verbose_every == 0)
+                        if in_first_n or periodic:
+                            _log_sample(idx, n, rec, full=in_first_n)
+                    if cfg.running_score_every > 0 and (idx + 1) % cfg.running_score_every == 0:
+                        print(
+                            f"  [{idx+1}/{n}] running: {_running_score(records, task)} "
+                            f"avg_time={sum(times)/len(times):.3f}s"
+                        )
+                    elif (not cfg.verbose) and (idx + 1) % cfg.progress_every == 0:
+                        print(f"  [{idx+1}/{n}] avg={sum(times)/len(times):.3f}s")
+                i += len(batch)
+            else:
+                sample = samples[i]
+                with timer() as t:
+                    raw = method.predict(sample)
+                elapsed = t["elapsed"]
+                times.append(elapsed)
+                rec = build_record(sample, raw, elapsed)
                 records.append(rec)
-                idx = i + j
+                pred_f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+                pred_f.flush()
+
                 if cfg.verbose:
-                    in_first_n = idx < cfg.verbose_first_n
-                    periodic = cfg.verbose_every > 0 and ((idx + 1) % cfg.verbose_every == 0)
+                    in_first_n = i < cfg.verbose_first_n
+                    periodic = cfg.verbose_every > 0 and ((i + 1) % cfg.verbose_every == 0)
                     if in_first_n or periodic:
-                        _log_sample(idx, n, rec, full=in_first_n)
-                if cfg.running_score_every > 0 and (idx + 1) % cfg.running_score_every == 0:
+                        _log_sample(i, n, rec, full=in_first_n)
+
+                if cfg.running_score_every > 0 and (i + 1) % cfg.running_score_every == 0:
                     print(
-                        f"  [{idx+1}/{n}] running: {_running_score(records, task)} "
+                        f"  [{i+1}/{n}] running: {_running_score(records, task)} "
                         f"avg_time={sum(times)/len(times):.3f}s"
                     )
-                elif (not cfg.verbose) and (idx + 1) % cfg.progress_every == 0:
-                    print(f"  [{idx+1}/{n}] avg={sum(times)/len(times):.3f}s")
-            i += len(batch)
-        else:
-            sample = samples[i]
-            with timer() as t:
-                raw = method.predict(sample)
-            elapsed = t["elapsed"]
-            times.append(elapsed)
-            rec = build_record(sample, raw, elapsed)
-            records.append(rec)
-
-            if cfg.verbose:
-                in_first_n = i < cfg.verbose_first_n
-                periodic = cfg.verbose_every > 0 and ((i + 1) % cfg.verbose_every == 0)
-                if in_first_n or periodic:
-                    _log_sample(i, n, rec, full=in_first_n)
-
-            if cfg.running_score_every > 0 and (i + 1) % cfg.running_score_every == 0:
-                print(
-                    f"  [{i+1}/{n}] running: {_running_score(records, task)} "
-                    f"avg_time={sum(times)/len(times):.3f}s"
-                )
-            elif (not cfg.verbose) and (i + 1) % cfg.progress_every == 0:
-                print(f"  [{i+1}/{n}] avg={sum(times)/len(times):.3f}s")
-            i += 1
+                elif (not cfg.verbose) and (i + 1) % cfg.progress_every == 0:
+                    print(f"  [{i+1}/{n}] avg={sum(times)/len(times):.3f}s")
+                i += 1
 
     task = samples[0]["task"]
     language = samples[0]["language"]
     metrics = score_records(records, task, language)
     avg_t = avg_inference_time(times)
-
-    out_dir = Path(cfg.output_dir) / cfg.method / cfg.dataset
-    out_dir.mkdir(parents=True, exist_ok=True)
-    write_jsonl(out_dir / "predictions.jsonl", records)
     metrics_payload = {
         "experiment": cfg.experiment_name,
         "method": cfg.method,
