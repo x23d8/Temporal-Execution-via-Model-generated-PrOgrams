@@ -1,0 +1,67 @@
+# ── Gemma-4-E4B-it  ·  QLoRA (4-bit)  ·  Kaggle T4/P100 ────────────────────
+# Requires ~8-9 GB VRAM.  Best choice for Kaggle free tier (T4 16 GB).
+# 4-bit quantization + double-quant drastically reduces memory footprint.
+
+model:
+  name: "google/gemma-4-E4B-it"
+  max_length: 512
+  trust_remote_code: false
+
+peft:
+  method: "qlora"         # 4-bit BitsAndBytes + LoRA adapters
+  lora:
+    r: 16
+    alpha: 32
+    dropout: 0.05
+    target_modules: ["q_proj", "k_proj", "v_proj", "o_proj"]
+    bias: "none"
+  qlora:
+    bits: 4
+    double_quant: true
+    quant_type: "nf4"
+    compute_dtype: "float16"    # T4 supports float16; use bfloat16 on A100
+
+training:
+  epochs: 5
+  learning_rate: 2.0e-4
+  batch_size: 8               # larger batch fits because model is quantized
+  eval_batch_size: 8
+  gradient_accumulation_steps: 2   # effective batch = 16
+  warmup_steps: 50
+  weight_decay: 0.01
+  max_grad_norm: 1.0
+  fp16: true
+  bf16: false
+  optim: "paged_adamw_32bit"
+  lr_scheduler_type: "cosine"
+  dataloader_num_workers: 2
+  seed: 42
+
+early_stopping:
+  enabled: true
+  patience: 3
+  min_delta: 0.001
+  monitor: "eval_loss"
+
+data:
+  train_path: "data/train.jsonl"
+  eval_path: null
+  format: "instruction"
+  instruction_column: "instruction"
+  input_column: "input"
+  output_column: "output"
+  prompt_template: |
+    <start_of_turn>user
+    {instruction}<end_of_turn>
+    <start_of_turn>model
+    {output}<end_of_turn>
+  validation_split: 0.1
+  max_samples: null
+
+logging:
+  output_dir: "finetune/outputs/gemma4_qlora"
+
+checkpoint:
+  enabled: true
+  save_total_limit: 3
+  resume_from: null

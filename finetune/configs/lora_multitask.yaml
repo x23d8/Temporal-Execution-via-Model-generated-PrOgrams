@@ -1,0 +1,45 @@
+# Config tối ưu cho Google Colab Pro (A100 40 GB / L4 24 GB)
+# LoRA r=16 + bfloat16 + gradient checkpointing → ~18–22 GB VRAM
+
+model_name: Qwen/Qwen3.5-9B
+dtype: bfloat16
+
+datasets:
+  - bigbench_date
+  - udst_duration
+  - vlsp_date
+  - vlsp_duration
+max_samples_per_dataset: null
+eval_split: 0.1
+
+task_weights:
+  date_arith: 1.0
+  duration: 1.0
+
+prompt_mode: dual
+lambda_gen: 1.0
+lambda_cls: 0.5
+
+logprob_eval: true
+
+output_dir: finetune/outputs/lora_multitask
+max_seq_len: 512
+per_device_batch_size: 2
+gradient_accumulation_steps: 16
+num_train_epochs: 3
+learning_rate: 2.0e-5
+warmup_ratio: 0.1
+weight_decay: 0.01
+eval_steps: 200
+save_steps: 200
+logging_steps: 20
+seed: 42
+dataloader_num_workers: 0
+
+# LoRA — bật, chỉ train ~1% tham số
+use_lora: true
+lora_r: 16
+lora_alpha: 32
+lora_dropout: 0.05
+lora_target_modules: [q_proj, k_proj, v_proj, o_proj]
+lora_bias: none

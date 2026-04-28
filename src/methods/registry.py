@@ -8,6 +8,7 @@ from ..data.schema import Sample
 from ..models.base import ChatLM
 from .extract_normalize import ExtractNormalizeMethod
 from .few_shot import FewShotMethod, fixed_shots
+from .free_think import FreeThinkMethod
 from .symbolic_cot import SymbolicCoTMethod
 from .zero_shot import ZeroShotMethod
 
@@ -47,11 +48,20 @@ def build_extract_normalize(model: ChatLM, **kwargs: Any) -> ExtractNormalizeMet
     )
 
 
+def build_free_think(model: ChatLM, **kwargs: Any) -> FreeThinkMethod:
+    # Default enable_thinking=True — that's the whole point of this method.
+    return FreeThinkMethod(
+        model=model,
+        enable_thinking=kwargs.get("enable_thinking", True),
+    )
+
+
 METHOD_BUILDERS: dict[str, Callable[..., Any]] = {
     "zero_shot": build_zero_shot,
     "few_shot": build_few_shot,
     "symbolic_cot": build_symbolic_cot,
     "extract_normalize": build_extract_normalize,
+    "free_think": build_free_think,
 }
 
 

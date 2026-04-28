@@ -1,0 +1,64 @@
+# ── Gemma-4-E4B-it  ·  Full Finetuning (no PEFT)  ·  Kaggle T4/P100 ─────────
+# peft.method: "none" → trains ALL parameters, no LoRA adapters.
+#
+# VRAM budget on T4 (16 GB):
+#   Weights (fp16)    : ~8 GB
+#   Gradients         : ~8 GB   ← gradient checkpointing trades compute for this
+#   Optimizer (8-bit) : ~8 GB   ← paged_adamw_8bit halves the 32-bit cost
+#   → Very tight; use batch_size=1 + gradient_accumulation_steps=16
+#   → For more headroom use QLoRA instead (gemma_2b_qlora.yaml)
+#
+# Recommended GPU: A100 (40 GB) or T4 with aggressive settings below.
+
+model:
+  name: "google/gemma-4-E4B-it"
+  max_length: 512
+  trust_remote_code: false
+
+peft:
+  method: "none"          # "none" | "lora" | "qlora" — "none" trains all weights
+
+training:
+  epochs: 3
+  learning_rate: 5.0e-5   # lower LR — full weights are more sensitive
+  batch_size: 1
+  eval_batch_size: 1
+  gradient_accumulation_steps: 16  # effective batch = 16
+  warmup_steps: 100
+  weight_decay: 0.01
+  max_grad_norm: 1.0
+  fp16: true
+  bf16: false
+  optim: "paged_adamw_8bit"  # 8-bit optimizer states → ~half the VRAM of 32-bit
+  lr_scheduler_type: "cosine"
+  dataloader_num_workers: 2
+  seed: 42
+
+early_stopping:
+  enabled: true
+  patience: 2
+  min_delta: 0.001
+  monitor: "eval_loss"
+
+data:
+  train_path: "Dataset/Preprocessed/all_combined.jsonl"
+  eval_path: null
+  format: "instruction"
+  instruction_column: "question"
+  input_column: "context"
+  output_column: "gold"
+  prompt_template: |
+    <start_of_turn>user
+    {instruction}<end_of_turn>
+    <start_of_turn>model
+    {output}<end_of_turn>
+  validation_split: 0.1
+  max_samples: null
+
+logging:
+  output_dir: "finetune/outputs/gemma4_full"
+
+checkpoint:
+  enabled: true
+  save_total_limit: 2     # full checkpoints are large (~8 GB each)
+  resume_from: null

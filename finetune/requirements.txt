@@ -1,0 +1,14 @@
+# Kaggle finetuning pipeline dependencies
+# Install order matters for bitsandbytes on Kaggle T4
+
+torch>=2.1.0
+transformers>=4.40.0
+peft>=0.10.0
+accelerate>=0.27.0
+bitsandbytes>=0.43.0       # QLoRA 4-bit quantization
+datasets>=2.18.0
+scikit-learn>=1.4.0
+tqdm>=4.66.0
+rich>=13.7.0               # pretty progress tables (optional but recommended)
+pyyaml>=6.0
+numpy>=1.24.0

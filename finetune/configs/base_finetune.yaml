@@ -1,0 +1,50 @@
+# Cấu hình đầy đủ — fine-tuning Qwen3.5-9B full weight (cần >40 GB VRAM)
+# Trên Colab dùng lora_multitask.yaml thay thế
+
+model_name: Qwen/Qwen3.5-9B
+dtype: bfloat16
+
+# Datasets (tên trong src/data/registry.DATASET_LOADERS)
+datasets:
+  - bigbench_date
+  - udst_duration
+  - vlsp_date
+  - vlsp_duration
+max_samples_per_dataset: null     # null = dùng toàn bộ dataset
+eval_split: 0.1
+
+# Task weights — scale loss theo task để cân bằng
+task_weights:
+  date_arith: 1.0
+  duration: 1.0
+
+# Dual-prompt
+prompt_mode: dual                 # "single" | "dual"
+lambda_gen: 1.0                   # trọng số L_gen
+lambda_cls: 0.5                   # trọng số L_cls
+
+# Log-prob evaluation
+logprob_eval: true                # dùng log P("yes"/"no") cho duration eval
+
+# Training
+output_dir: finetune/outputs/base_finetune
+max_seq_len: 512
+per_device_batch_size: 2
+gradient_accumulation_steps: 16  # effective batch = 2 × 16 = 32
+num_train_epochs: 3
+learning_rate: 2.0e-5
+warmup_ratio: 0.1
+weight_decay: 0.01
+eval_steps: 200
+save_steps: 200
+logging_steps: 20
+seed: 42
+dataloader_num_workers: 0
+
+# LoRA — tắt (full fine-tuning)
+use_lora: false
+lora_r: 16
+lora_alpha: 32
+lora_dropout: 0.05
+lora_target_modules: [q_proj, k_proj, v_proj, o_proj]
+lora_bias: none

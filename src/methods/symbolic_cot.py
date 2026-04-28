@@ -265,7 +265,7 @@ class SymbolicCoTMethod:
             max_new_tokens=150,
             temperature=0.0,
             do_sample=False,
-            enable_thinking=False,
+            enable_thinking=self.enable_thinking,
         )
         return raw.strip() or None
 
@@ -310,7 +310,7 @@ class SymbolicCoTMethod:
             max_new_tokens=250,
             temperature=0.0,
             do_sample=False,
-            enable_thinking=False,
+            enable_thinking=self.enable_thinking,
         )
 
         answer = _extract_yes_no(raw)
@@ -324,7 +324,7 @@ class SymbolicCoTMethod:
                     max_new_tokens=250,
                     temperature=0.5,
                     do_sample=True,
-                    enable_thinking=False,
+                    enable_thinking=self.enable_thinking,
                 )
                 answer2 = _extract_yes_no(raw2)
                 if answer2:
@@ -434,7 +434,7 @@ class SymbolicCoTMethod:
             max_new_tokens=300,
             temperature=temperature,
             do_sample=do_sample,
-            enable_thinking=False,
+            enable_thinking=self.enable_thinking,
         )
 
     # ------------------------------------------------------------------
@@ -470,7 +470,7 @@ class SymbolicCoTMethod:
             max_new_tokens=200,
             temperature=0.0,
             do_sample=False,
-            enable_thinking=False,
+            enable_thinking=self.enable_thinking,
         )
 
     # ------------------------------------------------------------------

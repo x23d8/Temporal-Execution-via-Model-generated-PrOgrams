@@ -27,10 +27,11 @@ def build_record(
     sample: dict,
     raw_output: str,
     elapsed_sec: float,
+    extractor=None,
 ) -> dict:
     task = sample["task"]
     language = sample["language"]
-    extracted = extract(task, language, raw_output)
+    extracted = extractor(task, language, raw_output) if extractor else extract(task, language, raw_output)
     gold_norm = normalize_gold(task, language, sample["gold"])
     correct = (extracted == gold_norm) if extracted is not None else False
     rec = {

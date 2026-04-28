@@ -1,0 +1,61 @@
+# ── Mistral-7B  ·  QLoRA (4-bit)  ·  Kaggle T4/P100 ─────────────────────────
+# Requires ~12-14 GB VRAM with 4-bit quant + gradient checkpointing.
+# Fits on a single T4 (16 GB). Reduce batch_size to 4 if OOM.
+
+model:
+  name: "mistralai/Mistral-7B-v0.1"
+  max_length: 1024
+  trust_remote_code: false
+
+peft:
+  method: "qlora"
+  lora:
+    r: 64                   # larger r → more capacity for 7B model
+    alpha: 128
+    dropout: 0.05
+    target_modules: ["q_proj", "k_proj", "v_proj", "o_proj",
+                     "gate_proj", "up_proj", "down_proj"]
+    bias: "none"
+  qlora:
+    bits: 4
+    double_quant: true
+    quant_type: "nf4"
+    compute_dtype: "float16"
+
+training:
+  epochs: 3
+  learning_rate: 1.0e-4
+  batch_size: 4
+  eval_batch_size: 4
+  gradient_accumulation_steps: 4   # effective batch = 16
+  warmup_steps: 100
+  weight_decay: 0.01
+  max_grad_norm: 0.3
+  fp16: true
+  bf16: false
+  optim: "paged_adamw_32bit"
+  lr_scheduler_type: "cosine"
+  dataloader_num_workers: 2
+  seed: 42
+
+early_stopping:
+  enabled: true
+  patience: 2
+  min_delta: 0.001
+  monitor: "eval_loss"
+
+data:
+  train_path: "data/train.jsonl"
+  eval_path: null
+  format: "chat"              # chat format: {"messages": [...]}
+  messages_column: "messages"
+  validation_split: 0.1
+  max_samples: null
+
+logging:
+  output_dir: "finetune/outputs/mistral_7b_qlora"
+
+checkpoint:
+  enabled: true
+  save_total_limit: 2         # keep only last 2 (7B checkpoints are large)
+  resume_from: null

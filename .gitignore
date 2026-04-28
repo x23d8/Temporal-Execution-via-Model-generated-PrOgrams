@@ -143,7 +143,6 @@ lightning_logs/
 *.temp
 *.bak
 *.backup
-finetune
 
 # ============================================================================
 # EXPERIMENT AREA (local prototyping, not for review)

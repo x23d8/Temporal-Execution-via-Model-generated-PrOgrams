@@ -28,7 +28,7 @@ from .evaluation.metrics import avg_inference_time
 from .methods.registry import build_method
 from .models.qwen import QwenChatLM, QwenConfig
 from .prompts.shot_pools import get_shots
-from .utils.io import write_json, write_jsonl
+from .utils.io import read_jsonl, write_json, write_jsonl
 from .utils.seed import set_seed
 from .utils.timing import timer
 
@@ -104,10 +104,11 @@ def _append_summary(path: Path, row: dict) -> None:
         writer.writerow(row)
 
 
-def _running_score(records: list[dict], task: str) -> str:
-    """Running F1 (duration) hoặc accuracy (date_arith) tạm thời."""
+def _running_score(records: list[dict], task: str, language: str) -> str:
+    """Running F1 (duration) or accuracy (date_arith), tagged with language."""
     if not records:
         return "n/a"
+    tag = f"[{language.upper()}]"
     if task == "duration":
         from .evaluation.metrics import binary_f1_yes
         m = binary_f1_yes(
@@ -115,7 +116,7 @@ def _running_score(records: list[dict], task: str) -> str:
             [r["extracted"] for r in records],
         )
         return (
-            f"f1={m['f1']:.3f} p={m['precision']:.3f} r={m['recall']:.3f} "
+            f"{tag} f1={m['f1']:.3f} p={m['precision']:.3f} r={m['recall']:.3f} "
             f"parse_fail={m['parse_fail']}"
         )
     from .evaluation.metrics import accuracy
@@ -123,7 +124,10 @@ def _running_score(records: list[dict], task: str) -> str:
         [r["gold_normalized"] for r in records],
         [r["extracted"] for r in records],
     )
-    return f"acc={m['accuracy']:.3f} correct={m['correct']}/{m['support']} parse_fail={m['parse_fail']}"
+    return (
+        f"{tag} acc={m['accuracy']:.3f} correct={m['correct']}/{m['support']} "
+        f"parse_fail={m['parse_fail']}"
+    )
 
 
 def _log_sample(idx: int, total: int, rec: dict, full: bool) -> None:
@@ -189,8 +193,11 @@ def run(
             f"max_correction_attempts={cfg.max_correction_attempts}"
         )
     method = build_method(cfg.method, model, **method_kwargs)
+    # Method may provide its own extractor (e.g. free_think); None falls back to default.
+    custom_extractor = getattr(method, "extract_answer", None)
 
-    task = samples[0]["task"]
+    task     = samples[0]["task"]
+    language = samples[0]["language"]
     records: list[dict] = []
     times: list[float] = []
     n = len(samples)
@@ -223,7 +230,7 @@ def run(
                 per_sample_elapsed = batch_elapsed / len(batch)
                 for j, (sample, raw) in enumerate(zip(batch, raws)):
                     times.append(per_sample_elapsed)
-                    rec = build_record(sample, raw, per_sample_elapsed)
+                    rec = build_record(sample, raw, per_sample_elapsed, extractor=custom_extractor)
                     records.append(rec)
                     pred_f.write(json.dumps(rec, ensure_ascii=False) + "\n")
                     pred_f.flush()
@@ -235,7 +242,7 @@ def run(
                             _log_sample(idx, n, rec, full=in_first_n)
                     if cfg.running_score_every > 0 and (idx + 1) % cfg.running_score_every == 0:
                         print(
-                            f"  [{idx+1}/{n}] running: {_running_score(records, task)} "
+                            f"  [{idx+1}/{n}] running: {_running_score(records, task, language)} "
                             f"avg_time={sum(times)/len(times):.3f}s"
                         )
                     elif (not cfg.verbose) and (idx + 1) % cfg.progress_every == 0:
@@ -247,7 +254,7 @@ def run(
                     raw = method.predict(sample)
                 elapsed = t["elapsed"]
                 times.append(elapsed)
-                rec = build_record(sample, raw, elapsed)
+                rec = build_record(sample, raw, elapsed, extractor=custom_extractor)
                 records.append(rec)
                 pred_f.write(json.dumps(rec, ensure_ascii=False) + "\n")
                 pred_f.flush()
@@ -258,17 +265,22 @@ def run(
                     if in_first_n or periodic:
                         _log_sample(i, n, rec, full=in_first_n)
 
-                if cfg.running_score_every > 0 and (i + 1) % cfg.running_score_every == 0:
+                # Print running score right after the first-N verbose block ends
+                if cfg.verbose and i + 1 == cfg.verbose_first_n:
                     print(
-                        f"  [{i+1}/{n}] running: {_running_score(records, task)} "
+                        f"  [after first {cfg.verbose_first_n}] running: "
+                        f"{_running_score(records, task, language)} "
+                        f"avg_time={sum(times)/len(times):.3f}s"
+                    )
+                elif cfg.running_score_every > 0 and (i + 1) % cfg.running_score_every == 0:
+                    print(
+                        f"  [{i+1}/{n}] running: {_running_score(records, task, language)} "
                         f"avg_time={sum(times)/len(times):.3f}s"
                     )
                 elif (not cfg.verbose) and (i + 1) % cfg.progress_every == 0:
                     print(f"  [{i+1}/{n}] avg={sum(times)/len(times):.3f}s")
                 i += 1
 
-    task = samples[0]["task"]
-    language = samples[0]["language"]
     metrics = score_records(records, task, language)
     avg_t = avg_inference_time(times)
     metrics_payload = {
