@@ -19,9 +19,9 @@ peft:
   method: "none"          # "none" | "lora" | "qlora" — "none" trains all weights
 
 training:
-  epochs: 3
+  epochs: 10
   learning_rate: 5.0e-5   # lower LR — full weights are more sensitive
-  batch_size: 1
+  batch_size: 4
   eval_batch_size: 1
   gradient_accumulation_steps: 16  # effective batch = 16
   warmup_steps: 100
