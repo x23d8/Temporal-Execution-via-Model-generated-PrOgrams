@@ -26,11 +26,12 @@ class PromptTemplate:
 
 
 # ------------------------- Duration EN (UDST) -------------------------
-
 _SYS_DURATION_EN = (
-    "You judge whether a candidate duration is plausible for the event in the context. "
-    "Respond with only the single word 'yes' or 'no'. "
-    "No reasoning, no punctuation, no extra tokens."
+    "You are a careful reasoning model. "
+    "First, silently think through whether the duration is plausible given the context. "
+    "Do NOT output your reasoning. "
+    "Then respond with ONLY one word: 'yes' or 'no'. "
+    "No explanation, no punctuation, no extra tokens."
 )
 
 
@@ -59,11 +60,12 @@ DURATION_EN = PromptTemplate(
 # ------------------------- Duration VI (VLSP) -------------------------
 
 _SYS_DURATION_VI = (
-    "Bạn đánh giá một khoảng thời gian có hợp lý cho sự kiện trong ngữ cảnh hay không. "
-    "Chỉ trả lời duy nhất 'yes' hoặc 'no'. "
-    "Không giải thích, không thêm bất kỳ ký tự nào khác."
+    "Bạn là một mô hình suy luận cẩn thận. "
+    "Trước tiên, hãy tự suy nghĩ (ẩn) xem khoảng thời gian có hợp lý với ngữ cảnh hay không. "
+    "KHÔNG được in ra phần suy nghĩ. "
+    "Sau đó chỉ trả lời duy nhất một từ: 'yes' hoặc 'no'. "
+    "Không giải thích, không thêm ký tự nào khác."
 )
-
 
 def _user_duration_vi(s: Sample) -> str:
     cand = s["meta"].get("candidate_answer", "")
@@ -84,11 +86,12 @@ DURATION_VI = PromptTemplate(
 
 
 # ------------------------- DateArith EN (BigBench) -------------------------
-
 _SYS_DATE_EN = (
-    "You are a date arithmetic solver. "
-    "Respond with ONLY the target date in MM/DD/YYYY format. "
-    "No reasoning, no words, no punctuation other than the slashes."
+    "You are a precise date arithmetic solver. "
+    "First, compute the answer step by step internally. "
+    "Do NOT reveal your reasoning. "
+    "Then output ONLY the final date in MM/DD/YYYY format. "
+    "No words, no explanation, only the date."
 )
 
 
@@ -109,11 +112,12 @@ DATE_EN = PromptTemplate(
 
 
 # ------------------------- DateArith VI (VLSP) -------------------------
-
 _SYS_DATE_VI = (
-    "Bạn là bộ giải các phép tính thời gian. "
-    "Chỉ trả lời duy nhất theo đúng mẫu 'Tháng M, YYYY' (ví dụ: 'Tháng 4, 1321'). "
-    "Không giải thích, không thêm ký tự hay văn bản nào khác."
+    "Bạn là bộ giải bài toán tính toán thời gian chính xác. "
+    "Trước tiên, hãy tự tính toán từng bước một cách ẩn. "
+    "KHÔNG được hiển thị quá trình suy nghĩ. "
+    "Sau đó chỉ trả lời duy nhất theo định dạng: 'Tháng M, YYYY'. "
+    "Không giải thích, không thêm bất kỳ ký tự nào khác."
 )
 
 

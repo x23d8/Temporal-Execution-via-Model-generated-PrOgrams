@@ -45,6 +45,14 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     p.add_argument(
+        "--hf_token",
+        default=None,
+        help=(
+            "HuggingFace token for gated models. "
+            "Falls back to Kaggle secret 'HF_TOKEN', then env var HF_TOKEN."
+        ),
+    )
+    p.add_argument(
         "--resume",
         default=None,
         help='Checkpoint to resume from. Use "auto" for latest, or a path.',
@@ -55,6 +63,42 @@ def parse_args() -> argparse.Namespace:
         help="Override logging.output_dir in config (auto-suffixed per model when --models is used)",
     )
     return p.parse_args()
+
+
+def _hf_login(token: str | None = None) -> None:
+    """Authenticate with HuggingFace Hub.
+
+    Resolution order:
+      1. --hf_token CLI argument
+      2. Kaggle secret named 'HF_TOKEN'  (Kaggle notebooks only)
+      3. Environment variable HF_TOKEN
+      4. Environment variable HUGGING_FACE_HUB_TOKEN
+
+    Skips login silently when no token is found (public models work without one).
+    """
+    import os
+
+    resolved = token
+
+    if not resolved:
+        try:
+            from kaggle_secrets import UserSecretsClient
+            resolved = UserSecretsClient().get_secret("HF_TOKEN")
+            print("[pipeline] HF token loaded from Kaggle secrets")
+        except Exception:
+            pass
+
+    if not resolved:
+        resolved = os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN")
+        if resolved:
+            print("[pipeline] HF token loaded from environment variable")
+
+    if resolved:
+        from huggingface_hub import login
+        login(token=resolved, add_to_git_credential=False)
+        print("[pipeline] HuggingFace login successful")
+    else:
+        print("[pipeline] No HF token found — only public models will be accessible")
 
 
 def _model_slug(model_id: str) -> str:
@@ -86,6 +130,8 @@ def _run_single(cfg, model_id: str | None, base_output_dir: str, multi: bool) ->
 
 def main() -> None:
     args = parse_args()
+
+    _hf_login(args.hf_token)
 
     from finetune.src.core.config import load_config
 
