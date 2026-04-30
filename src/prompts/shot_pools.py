@@ -100,6 +100,14 @@ DATE_EN_SHOTS: list[Sample] = [
         meta={},
     ),
     Sample(
+        sample_id="shot-date-en-4",
+        task="date_arith", language="en", dataset="manual",
+        context="",
+        question="Yesterday was November 12, 2018. What is the date yesterday in MM/DD/YYYY?",
+        gold="11/12/2018",  # yesterday was stated as Nov 12; answer is Nov 12
+        meta={},
+    ),
+    Sample(
         sample_id="shot-date-en-3",
         task="date_arith", language="en", dataset="manual",
         context="",

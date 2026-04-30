@@ -4,12 +4,14 @@
 - bigbench_date: chuỗi MM/DD/YYYY.
 - vlsp_date: "Tháng M, YYYY" (VI date arithmetic).
 
-Tất cả hàm đều strip `<think>...</think>` trước khi parse để hỗ trợ Qwen3.5-9B
-chế độ thinking.
+Extraction priority:
+  1. JSON {"thinking": ..., "answer": ...} — used when enable_thinking=True.
+  2. Regex fallback — for plain text output (non-thinking mode).
 """
 
 from __future__ import annotations
 
+import json as _json
 import re
 
 _THINK_RE = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
@@ -29,22 +31,70 @@ def strip_thinking(text: str) -> str:
     return _THINK_RE.sub("", text).strip()
 
 
+_JSON_ANSWER_RE = re.compile(r'"answer"\s*:\s*"([^"]*)"')
+
+
+def _extract_json_answer(text: str) -> str | None:
+    """Return the 'answer' field from a JSON object in the text, or None.
+
+    Tries strict JSON parse first, then a bare-regex scan so partial/truncated
+    JSON (model ran out of tokens mid-thinking) still yields the answer.
+    Works reliably when the format puts "answer" before "thinking" so the
+    answer field is emitted before any long reasoning that might get cut off.
+    """
+    # Strict parse — full text
+    try:
+        data = _json.loads(text.strip())
+        if isinstance(data, dict) and "answer" in data:
+            return str(data["answer"]).strip()
+    except _json.JSONDecodeError:
+        pass
+    # Strict parse — first {...} block (model may add prose around JSON)
+    m = re.search(r"\{[^{}]*\}", text, re.DOTALL)
+    if m:
+        try:
+            data = _json.loads(m.group())
+            if isinstance(data, dict) and "answer" in data:
+                return str(data["answer"]).strip()
+        except _json.JSONDecodeError:
+            pass
+    # Regex fallback — handles truncated / malformed JSON
+    m = _JSON_ANSWER_RE.search(text)
+    if m:
+        return m.group(1).strip()
+    return None
+
+
 def extract_yes_no(raw: str) -> str | None:
     """Return 'yes' or 'no' (positive class = yes). None if undecidable."""
     if raw is None:
         return None
-    text = strip_thinking(raw).strip().lower()
-    if not text:
+    text = strip_thinking(raw)
+
+    # JSON path
+    json_ans = _extract_json_answer(text)
+    if json_ans is not None:
+        ans = json_ans.strip().lower()
+        if ans in ("yes", "no"):
+            return ans
+        if _YES_PAT.search(ans) and not _NO_PAT.search(ans):
+            return "yes"
+        if _NO_PAT.search(ans) and not _YES_PAT.search(ans):
+            return "no"
+
+    # Regex fallback
+    lowered = text.strip().lower()
+    if not lowered:
         return None
-    head = text[:40]
+    head = lowered[:40]
     y = _YES_PAT.search(head)
     n = _NO_PAT.search(head)
     if y and not n:
         return "yes"
     if n and not y:
         return "no"
-    y_any = _YES_PAT.search(text)
-    n_any = _NO_PAT.search(text)
+    y_any = _YES_PAT.search(lowered)
+    n_any = _NO_PAT.search(lowered)
     if y_any and not n_any:
         return "yes"
     if n_any and not y_any:
@@ -55,14 +105,25 @@ def extract_yes_no(raw: str) -> str | None:
 
 
 def extract_mmddyyyy(raw: str) -> str | None:
-    """Extract first MM/DD/YYYY (2-digit year → 20YY if <50 else 19YY... we keep as-is)."""
+    """Extract MM/DD/YYYY: JSON 'answer' field first, then last regex match."""
     if raw is None:
         return None
     text = strip_thinking(raw)
-    m = _DATE_MMDDYYYY_RE.search(text)
-    if not m:
+
+    # JSON path
+    json_ans = _extract_json_answer(text)
+    if json_ans is not None:
+        m = _DATE_MMDDYYYY_RE.search(json_ans)
+        if m:
+            mm, dd, yyyy = m.group(1), m.group(2), m.group(3)
+            if len(yyyy) != 2:
+                return f"{int(mm):02d}/{int(dd):02d}/{int(yyyy):04d}"
+
+    # Regex fallback — take last match so CoT reasoning doesn't shadow the answer
+    matches = _DATE_MMDDYYYY_RE.findall(text)
+    if not matches:
         return None
-    mm, dd, yyyy = m.group(1), m.group(2), m.group(3)
+    mm, dd, yyyy = matches[-1]
     if len(yyyy) == 2:
         return None
     return f"{int(mm):02d}/{int(dd):02d}/{int(yyyy):04d}"
@@ -82,13 +143,25 @@ def normalize_mmddyyyy(s: str) -> str | None:
 
 
 def extract_vi_month_year(raw: str) -> str | None:
-    """Extract 'Tháng M, YYYY' pattern; return canonical 'Tháng {M}, {YYYY}'."""
+    """Extract 'Tháng M, YYYY': JSON 'answer' field first, then last regex match."""
     if raw is None:
         return None
     text = strip_thinking(raw)
-    m = _VI_MONTH_RE.search(text)
-    if not m:
+
+    # JSON path
+    json_ans = _extract_json_answer(text)
+    if json_ans is not None:
+        m = _VI_MONTH_RE.search(json_ans)
+        if m:
+            month, year = int(m.group(1)), int(m.group(2))
+            if 1 <= month <= 12:
+                return f"Tháng {month}, {year}"
+
+    # Regex fallback — take last match
+    matches = list(_VI_MONTH_RE.finditer(text))
+    if not matches:
         return None
+    m = matches[-1]
     month, year = int(m.group(1)), int(m.group(2))
     if not (1 <= month <= 12):
         return None

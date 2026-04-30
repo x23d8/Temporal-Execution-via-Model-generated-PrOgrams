@@ -16,9 +16,9 @@ class ZeroShotMethod:
         self.enable_thinking = enable_thinking
 
     def predict(self, sample: Sample) -> str:
-        messages = build_messages(sample, shots=())
+        messages = build_messages(sample, shots=(), enable_thinking=self.enable_thinking)
         kwargs = gen_kwargs_for(sample["task"])
         kwargs["enable_thinking"] = self.enable_thinking
         if self.enable_thinking:
-            kwargs["max_new_tokens"] = max(kwargs["max_new_tokens"], 256)
+            kwargs["max_new_tokens"] = max(kwargs["max_new_tokens"], 1024)
         return self.model.generate(messages, **kwargs)

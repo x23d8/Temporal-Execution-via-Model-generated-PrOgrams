@@ -1,0 +1,43 @@
+{
+  "experiment": "zero_shot_bigbench_date",
+  "method": "zero_shot",
+  "dataset": "bigbench_date",
+  "task": "date_arith",
+  "language": "en",
+  "k_shot": 0,
+  "enable_thinking": true,
+  "seed": 42,
+  "model": "gemma4:e4b",
+  "num_samples": 369,
+  "avg_inference_sec": 25.105157610298114,
+  "metrics": {
+    "accuracy": 0.7452574525745257,
+    "correct": 275,
+    "support": 369,
+    "parse_fail": 8
+  },
+  "config": {
+    "experiment_name": "zero_shot_bigbench_date",
+    "method": "zero_shot",
+    "dataset": "bigbench_date",
+    "seed": 42,
+    "model_name": "gemma4:e4b",
+    "dtype": "bfloat16",
+    "enable_thinking": true,
+    "k_shot": 0,
+    "max_samples": "default",
+    "dataset_path": null,
+    "output_dir": "F:\\temporal\\outputs",
+    "progress_every": 50,
+    "verbose": true,
+    "verbose_first_n": 5,
+    "verbose_every": 0,
+    "running_score_every": 50,
+    "n_hypotheses": 1,
+    "max_correction_attempts": 1,
+    "inference_batch_size": 1,
+    "use_planner": true,
+    "use_kb_for_duration": true,
+    "use_retrospective_verify": true
+  }
+}

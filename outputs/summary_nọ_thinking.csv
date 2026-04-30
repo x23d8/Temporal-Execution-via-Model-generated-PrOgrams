@@ -1,0 +1,6 @@
+timestamp,experiment,method,dataset,k_shot,enable_thinking,seed,model,num_samples,avg_inference_sec,metric,score,parse_fail
+2026-04-27T12:59:35,zero_shot_bigbench_date,zero_shot,bigbench_date,0,False,42,gemma4:e4b,369,3.142,accuracy,0.3523,1
+2026-04-27T14:19:13,zero_shot_vlsp_date,zero_shot,vlsp_date,0,False,42,gemma4:e4b,1500,3.1725,accuracy,0.5873,0
+2026-04-27T14:38:25,few_shot_bigbench_date,few_shot,bigbench_date,3,False,42,gemma4:e4b,369,3.1226,accuracy,0.3659,1
+2026-04-27T15:57:08,few_shot_vlsp_date,few_shot,vlsp_date,3,False,42,gemma4:e4b,1500,3.1483,accuracy,0.7287,0
+2026-04-27T21:46:25,zero_shot_bigbench_date,zero_shot,bigbench_date,0,True,42,gemma4:e4b,369,3.142,accuracy,0.3523,1

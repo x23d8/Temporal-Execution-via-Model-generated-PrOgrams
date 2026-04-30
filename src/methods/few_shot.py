@@ -38,9 +38,9 @@ class FewShotMethod:
 
     def predict(self, sample: Sample) -> str:
         shots = self.shot_selector(sample)
-        messages = build_messages(sample, shots=shots)
+        messages = build_messages(sample, shots=shots, enable_thinking=self.enable_thinking)
         kwargs = gen_kwargs_for(sample["task"])
         kwargs["enable_thinking"] = self.enable_thinking
         if self.enable_thinking:
-            kwargs["max_new_tokens"] = max(kwargs["max_new_tokens"], 256)
+            kwargs["max_new_tokens"] = max(kwargs["max_new_tokens"], 1024)
         return self.model.generate(messages, **kwargs)

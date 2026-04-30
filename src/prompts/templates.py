@@ -10,6 +10,7 @@ Few-shot dùng messages format: mỗi shot là 1 cặp user/assistant bơm trư�
 
 from __future__ import annotations
 
+import json as _json
 from dataclasses import dataclass
 from typing import Callable, Sequence
 
@@ -23,6 +24,8 @@ class PromptTemplate:
     render_user: Callable[[Sample], str]
     render_shot_user: Callable[[Sample], str]
     render_shot_assistant: Callable[[Sample], str]
+    system_thinking: str | None = None
+    render_shot_assistant_thinking: Callable[[Sample], str] | None = None
 
 
 # ------------------------- Duration EN (UDST) -------------------------
@@ -32,6 +35,13 @@ _SYS_DURATION_EN = (
     "Do NOT output your reasoning. "
     "Then respond with ONLY one word: 'yes' or 'no'. "
     "No explanation, no punctuation, no extra tokens."
+)
+
+_SYS_DURATION_EN_THINK = (
+    "You are a careful reasoning model. "
+    "Respond with a JSON object with exactly two keys: "
+    '"thinking" (your step-by-step reasoning about plausibility) and "answer" ("yes" or "no"). '
+    'Example: {"thinking": "Boiling water takes 3-5 minutes, so 3 minutes is plausible.", "answer": "yes"}'
 )
 
 
@@ -49,16 +59,21 @@ def _shot_assistant_yes_no(s: Sample) -> str:
     return s["gold"]
 
 
+def _shot_assistant_yes_no_thinking(s: Sample) -> str:
+    return _json.dumps({"thinking": "Evaluated plausibility.", "answer": s["gold"]})
+
+
 DURATION_EN = PromptTemplate(
     system=_SYS_DURATION_EN,
+    system_thinking=_SYS_DURATION_EN_THINK,
     render_user=_user_duration_en,
     render_shot_user=_user_duration_en,
     render_shot_assistant=_shot_assistant_yes_no,
+    render_shot_assistant_thinking=_shot_assistant_yes_no_thinking,
 )
 
 
 # ------------------------- Duration VI (VLSP) -------------------------
-
 _SYS_DURATION_VI = (
     "Bạn là một mô hình suy luận cẩn thận. "
     "Trước tiên, hãy tự suy nghĩ (ẩn) xem khoảng thời gian có hợp lý với ngữ cảnh hay không. "
@@ -66,6 +81,14 @@ _SYS_DURATION_VI = (
     "Sau đó chỉ trả lời duy nhất một từ: 'yes' hoặc 'no'. "
     "Không giải thích, không thêm ký tự nào khác."
 )
+
+_SYS_DURATION_VI_THINK = (
+    "Bạn là một mô hình suy luận cẩn thận. "
+    "Trả lời bằng một JSON object có đúng hai key: "
+    '"thinking" (quá trình suy luận về tính hợp lý) và "answer" ("yes" hoặc "no"). '
+    'Ví dụ: {"thinking": "Pha cà phê mất khoảng 5 phút, vì vậy 5 phút là hợp lý.", "answer": "yes"}'
+)
+
 
 def _user_duration_vi(s: Sample) -> str:
     cand = s["meta"].get("candidate_answer", "")
@@ -77,11 +100,17 @@ def _user_duration_vi(s: Sample) -> str:
     )
 
 
+def _shot_assistant_yes_no_vi_thinking(s: Sample) -> str:
+    return _json.dumps({"thinking": "Đánh giá tính hợp lý.", "answer": s["gold"]}, ensure_ascii=False)
+
+
 DURATION_VI = PromptTemplate(
     system=_SYS_DURATION_VI,
+    system_thinking=_SYS_DURATION_VI_THINK,
     render_user=_user_duration_vi,
     render_shot_user=_user_duration_vi,
     render_shot_assistant=_shot_assistant_yes_no,
+    render_shot_assistant_thinking=_shot_assistant_yes_no_vi_thinking,
 )
 
 
@@ -94,6 +123,13 @@ _SYS_DATE_EN = (
     "No words, no explanation, only the date."
 )
 
+_SYS_DATE_EN_THINK = (
+    "You are a precise date arithmetic solver. "
+    "Respond with a JSON object with exactly two keys: "
+    '"thinking" (your step-by-step reasoning) and "answer" (the final date in MM/DD/YYYY format). '
+    'Example: {"thinking": "Jan 15 + 10 days = Jan 25, 2020.", "answer": "01/25/2020"}'
+)
+
 
 def _user_date_en(s: Sample) -> str:
     return s["question"]
@@ -103,11 +139,17 @@ def _shot_assistant_date_en(s: Sample) -> str:
     return s["gold"]
 
 
+def _shot_assistant_date_en_thinking(s: Sample) -> str:
+    return _json.dumps({"thinking": "Computed step by step.", "answer": s["gold"]})
+
+
 DATE_EN = PromptTemplate(
     system=_SYS_DATE_EN,
+    system_thinking=_SYS_DATE_EN_THINK,
     render_user=_user_date_en,
     render_shot_user=_user_date_en,
     render_shot_assistant=_shot_assistant_date_en,
+    render_shot_assistant_thinking=_shot_assistant_date_en_thinking,
 )
 
 
@@ -118,6 +160,13 @@ _SYS_DATE_VI = (
     "KHÔNG được hiển thị quá trình suy nghĩ. "
     "Sau đó chỉ trả lời duy nhất theo định dạng: 'Tháng M, YYYY'. "
     "Không giải thích, không thêm bất kỳ ký tự nào khác."
+)
+
+_SYS_DATE_VI_THINK = (
+    "Bạn là bộ giải bài toán tính toán thời gian chính xác. "
+    "Trả lời bằng một JSON object có đúng hai key: "
+    '"thinking" (quá trình tính toán từng bước) và "answer" (kết quả theo định dạng "Tháng M, YYYY"). '
+    'Ví dụ: {"thinking": "Tháng 1, 1800 + 5 năm = Tháng 1, 1805.", "answer": "Tháng 1, 1805"}'
 )
 
 
@@ -132,11 +181,17 @@ def _shot_assistant_date_vi(s: Sample) -> str:
     return s["gold"]
 
 
+def _shot_assistant_date_vi_thinking(s: Sample) -> str:
+    return _json.dumps({"thinking": "Tính từng bước.", "answer": s["gold"]}, ensure_ascii=False)
+
+
 DATE_VI = PromptTemplate(
     system=_SYS_DATE_VI,
+    system_thinking=_SYS_DATE_VI_THINK,
     render_user=_user_date_vi,
     render_shot_user=_user_date_vi,
     render_shot_assistant=_shot_assistant_date_vi,
+    render_shot_assistant_thinking=_shot_assistant_date_vi_thinking,
 )
 
 
@@ -160,13 +215,18 @@ def get_template(task: str, language: str) -> PromptTemplate:
 def build_messages(
     sample: Sample,
     shots: Sequence[Sample] = (),
+    enable_thinking: bool = False,
 ) -> list[ChatMessage]:
     tmpl = get_template(sample["task"], sample["language"])
-    msgs: list[ChatMessage] = [ChatMessage(role="system", content=tmpl.system)]
+    system = tmpl.system_thinking if enable_thinking and tmpl.system_thinking else tmpl.system
+    msgs: list[ChatMessage] = [ChatMessage(role="system", content=system)]
+    shot_assistant_render = (
+        tmpl.render_shot_assistant_thinking
+        if enable_thinking and tmpl.render_shot_assistant_thinking
+        else tmpl.render_shot_assistant
+    )
     for shot in shots:
         msgs.append(ChatMessage(role="user", content=tmpl.render_shot_user(shot)))
-        msgs.append(
-            ChatMessage(role="assistant", content=tmpl.render_shot_assistant(shot))
-        )
+        msgs.append(ChatMessage(role="assistant", content=shot_assistant_render(shot)))
     msgs.append(ChatMessage(role="user", content=tmpl.render_user(sample)))
     return msgs
