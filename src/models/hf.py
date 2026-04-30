@@ -128,6 +128,21 @@ class HFChatLM:
 
         self._model = AutoModelForCausalLM.from_pretrained(cfg.model_name, **model_kwargs)
         self._model.eval()
+
+        # A100 / H100 inference speedups — auto-detected by VRAM > 20 GB.
+        # Skipped for quantized models (BitsAndBytes + torch.compile don't mix).
+        if not (cfg.load_in_4bit or cfg.load_in_8bit):
+            try:
+                if torch.cuda.is_available():
+                    props = torch.cuda.get_device_properties(0)
+                    if props.total_memory > 20 * 1024 ** 3:
+                        torch.backends.cuda.matmul.allow_tf32 = True
+                        torch.backends.cudnn.allow_tf32 = True
+                        self._model = torch.compile(self._model, mode="reduce-overhead")
+                        print(f"[HFChatLM] {props.name} — torch.compile + tf32 enabled")
+            except Exception:
+                pass  # torch < 2.0 or unsupported backend — silently skip
+
         print(f"[HFChatLM] ready — {cfg.model_name}")
 
     def unload(self) -> None:

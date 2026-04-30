@@ -124,6 +124,22 @@ class GemmaChatLM:
             self._model = PeftModel.from_pretrained(self._model, cfg.adapter_path)
 
         self._model.eval()
+
+        # A100 / H100 inference speedups — auto-detected by VRAM > 20 GB.
+        # Skipped for 4-bit quantized models (BitsAndBytes + torch.compile don't mix).
+        if not cfg.load_in_4bit:
+            try:
+                import torch as _torch
+                if _torch.cuda.is_available():
+                    props = _torch.cuda.get_device_properties(0)
+                    if props.total_memory > 20 * 1024 ** 3:
+                        _torch.backends.cuda.matmul.allow_tf32 = True
+                        _torch.backends.cudnn.allow_tf32 = True
+                        self._model = _torch.compile(self._model, mode="reduce-overhead")
+                        print(f"[GemmaChatLM] {props.name} — torch.compile + tf32 enabled")
+            except Exception:
+                pass
+
         print(f"[GemmaChatLM] ready — {cfg.model_name}")
 
     def generate(

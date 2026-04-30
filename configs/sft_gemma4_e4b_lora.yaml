@@ -6,7 +6,7 @@
 # Split 90/10 (~1350 train + ~150 val), deterministic seed=42.
 #
 # Hardware recommendations:
-#   A100 40 GB : bf16=true  fp16=false  load_in_4bit=false  (this config)
+#   A100 40 GB : bf16=true  fp16=false  load_in_4bit=false  batch=2 grad_acc=4  (this config)
 #   A100 20 GB : bf16=true  fp16=false  load_in_4bit=false  batch=1 grad_acc=8
 #   T4   16 GB : bf16=false fp16=true   load_in_4bit=true   batch=1 grad_acc=8
 #
@@ -40,8 +40,8 @@ lora_target_modules:
   - ffw_layer_1.linear
   - ffw_layer_2.linear
 num_epochs: 3
-per_device_batch_size: 1
-gradient_accumulation_steps: 8    # effective batch size = 8
+per_device_batch_size: 2          # A100 40 GB: 4B bf16 ~8 GB → room for batch=2
+gradient_accumulation_steps: 4    # effective batch size = 8 (2×4)
 learning_rate: 2.0e-4
 warmup_ratio: 0.03
 lr_scheduler: cosine
@@ -49,6 +49,7 @@ weight_decay: 0.0
 max_seq_length: 256
 bf16: true
 fp16: false
+tf32: true                        # A100 TF32 tensor cores — free matmul speedup
 
 logging_steps: 10
 save_strategy: epoch

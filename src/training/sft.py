@@ -75,6 +75,7 @@ class SFTRunConfig:
     # Precision — mutually exclusive; bf16 for A100, fp16 for T4
     bf16: bool = True
     fp16: bool = False
+    tf32: bool = True   # A100 TF32 tensor cores; ignored on T4 (no-op)
 
     # ── Logging / checkpointing ───────────────────────────────────────────────
     logging_steps: int = 10
@@ -226,6 +227,7 @@ def train_sft(cfg: SFTRunConfig) -> str:
         weight_decay=cfg.weight_decay,
         bf16=cfg.bf16,
         fp16=cfg.fp16,
+        tf32=cfg.tf32,
         logging_steps=cfg.logging_steps,
         save_strategy=cfg.save_strategy,
         save_total_limit=cfg.save_total_limit,
