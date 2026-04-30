@@ -14,6 +14,17 @@ import json as _json
 from dataclasses import dataclass
 from typing import Callable, Sequence
 
+
+def _md_json(**kwargs) -> str:
+    """Render kwargs as an indented JSON markdown code block.
+
+    Matches the format the local Ollama/Gemma model emits so that HF models
+    shown this example in the system prompt or few-shot will reproduce the
+    same raw_output structure.
+    """
+    body = _json.dumps(kwargs, ensure_ascii=False, indent=2)
+    return f"```json\n{body}\n```"
+
 from ..data.schema import Sample
 from ..models.base import ChatMessage
 
@@ -39,9 +50,12 @@ _SYS_DURATION_EN = (
 
 _SYS_DURATION_EN_THINK = (
     "You are a careful reasoning model. "
-    "Respond with a JSON object with exactly two keys: "
+    "Respond with a JSON object in a markdown code block with exactly two keys: "
     '"thinking" (your step-by-step reasoning about plausibility) and "answer" ("yes" or "no"). '
-    'Example: {"thinking": "Boiling water takes 3-5 minutes, so 3 minutes is plausible.", "answer": "yes"}'
+    "Example:\n" + _md_json(
+        thinking="Boiling water takes 3-5 minutes, so 3 minutes is plausible.",
+        answer="yes",
+    )
 )
 
 
@@ -60,7 +74,7 @@ def _shot_assistant_yes_no(s: Sample) -> str:
 
 
 def _shot_assistant_yes_no_thinking(s: Sample) -> str:
-    return _json.dumps({"thinking": "Evaluated plausibility.", "answer": s["gold"]})
+    return _md_json(thinking="Evaluated plausibility.", answer=s["gold"])
 
 
 DURATION_EN = PromptTemplate(
@@ -84,9 +98,12 @@ _SYS_DURATION_VI = (
 
 _SYS_DURATION_VI_THINK = (
     "Bạn là một mô hình suy luận cẩn thận. "
-    "Trả lời bằng một JSON object có đúng hai key: "
+    "Trả lời bằng một JSON object trong markdown code block có đúng hai key: "
     '"thinking" (quá trình suy luận về tính hợp lý) và "answer" ("yes" hoặc "no"). '
-    'Ví dụ: {"thinking": "Pha cà phê mất khoảng 5 phút, vì vậy 5 phút là hợp lý.", "answer": "yes"}'
+    "Ví dụ:\n" + _md_json(
+        thinking="Pha cà phê mất khoảng 5 phút, vì vậy 5 phút là hợp lý.",
+        answer="yes",
+    )
 )
 
 
@@ -101,7 +118,7 @@ def _user_duration_vi(s: Sample) -> str:
 
 
 def _shot_assistant_yes_no_vi_thinking(s: Sample) -> str:
-    return _json.dumps({"thinking": "Đánh giá tính hợp lý.", "answer": s["gold"]}, ensure_ascii=False)
+    return _md_json(thinking="Đánh giá tính hợp lý.", answer=s["gold"])
 
 
 DURATION_VI = PromptTemplate(
@@ -125,9 +142,12 @@ _SYS_DATE_EN = (
 
 _SYS_DATE_EN_THINK = (
     "You are a precise date arithmetic solver. "
-    "Respond with a JSON object with exactly two keys: "
+    "Respond with a JSON object in a markdown code block with exactly two keys: "
     '"thinking" (your step-by-step reasoning) and "answer" (the final date in MM/DD/YYYY format). '
-    'Example: {"thinking": "Jan 15 + 10 days = Jan 25, 2020.", "answer": "01/25/2020"}'
+    "Example:\n" + _md_json(
+        thinking="Jan 15 + 10 days = Jan 25, 2020.",
+        answer="01/25/2020",
+    )
 )
 
 
@@ -140,7 +160,7 @@ def _shot_assistant_date_en(s: Sample) -> str:
 
 
 def _shot_assistant_date_en_thinking(s: Sample) -> str:
-    return _json.dumps({"thinking": "Computed step by step.", "answer": s["gold"]})
+    return _md_json(thinking="Computed step by step.", answer=s["gold"])
 
 
 DATE_EN = PromptTemplate(
@@ -164,9 +184,12 @@ _SYS_DATE_VI = (
 
 _SYS_DATE_VI_THINK = (
     "Bạn là bộ giải bài toán tính toán thời gian chính xác. "
-    "Trả lời bằng một JSON object có đúng hai key: "
+    "Trả lời bằng một JSON object trong markdown code block có đúng hai key: "
     '"thinking" (quá trình tính toán từng bước) và "answer" (kết quả theo định dạng "Tháng M, YYYY"). '
-    'Ví dụ: {"thinking": "Tháng 1, 1800 + 5 năm = Tháng 1, 1805.", "answer": "Tháng 1, 1805"}'
+    "Ví dụ:\n" + _md_json(
+        thinking="Tháng 1, 1800 + 5 năm = Tháng 1, 1805.",
+        answer="Tháng 1, 1805",
+    )
 )
 
 
@@ -182,7 +205,7 @@ def _shot_assistant_date_vi(s: Sample) -> str:
 
 
 def _shot_assistant_date_vi_thinking(s: Sample) -> str:
-    return _json.dumps({"thinking": "Tính từng bước.", "answer": s["gold"]}, ensure_ascii=False)
+    return _md_json(thinking="Tính từng bước.", answer=s["gold"])
 
 
 DATE_VI = PromptTemplate(

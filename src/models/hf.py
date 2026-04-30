@@ -12,6 +12,48 @@ from dataclasses import dataclass
 from .base import ChatMessage
 
 
+def _merge_system_into_first_user(chat: list[dict]) -> list[dict]:
+    """Prepend system content to the first user message.
+
+    Matches Ollama's behavior for models without a native system role
+    (e.g. Gemma), where the system prompt is prepended to the first user
+    turn rather than emitted as a separate turn.
+    """
+    if not chat or chat[0]["role"] != "system":
+        return chat
+    sys_content = chat[0]["content"]
+    merged, prepended = [], False
+    for msg in chat[1:]:
+        if msg["role"] == "user" and not prepended:
+            merged.append({"role": "user", "content": f"{sys_content}\n\n{msg['content']}"})
+            prepended = True
+        else:
+            merged.append(msg)
+    return merged
+
+
+def _normalize_chat_for_template(tok, chat: list[dict]) -> list[dict]:
+    """Merge system into first user turn when the tokenizer remaps system→user.
+
+    Gemma's chat template converts system messages to user turns, producing
+    two consecutive user turns.  We detect this with a probe render and merge
+    so the token sequence matches what Ollama sends to the model.
+    """
+    if not chat or chat[0]["role"] != "system":
+        return chat
+    try:
+        probe = tok.apply_chat_template(
+            [{"role": "system", "content": "S"}, {"role": "user", "content": "U"}],
+            tokenize=False, add_generation_prompt=False,
+        )
+        # Gemma maps system→user: two <start_of_turn>user blocks appear
+        if probe.count("<start_of_turn>user") >= 2:
+            return _merge_system_into_first_user(chat)
+    except Exception:
+        pass
+    return chat
+
+
 @dataclass
 class HFConfig:
     model_name: str = "google/gemma-2-2b-it"
@@ -128,6 +170,9 @@ class HFChatLM:
         prompts: list[str] = []
         for messages in messages_list:
             chat = [{"role": m.role, "content": m.content} for m in messages]
+            # Merge system into first user for models that remap system→user (Gemma).
+            # This matches how Ollama formats the prompt for the same model family.
+            chat = _normalize_chat_for_template(tok, chat)
             try:
                 try:
                     # Models like Qwen3 accept enable_thinking in apply_chat_template
