@@ -36,7 +36,7 @@ from .data import (
 @dataclass
 class SFTRunConfig:
     # ── Model ────────────────────────────────────────────────────────────────
-    model_name: str = "google/gemma-4-E4B-it"
+    model_name: str = "google/gemma-4-E4B"
     dtype: str = "bfloat16"           # A100: bfloat16 | T4: float16
     load_in_4bit: bool = False         # True → QLoRA (saves ~4× VRAM)
 

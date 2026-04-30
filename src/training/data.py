@@ -54,15 +54,32 @@ def _merge_system_into_first_user(chat: list[dict]) -> list[dict]:
     return merged
 
 
-def _render_one(sample: Sample, tokenizer: "PreTrainedTokenizerBase") -> str:
-    """Convert one Sample to a full chat-format string (system+user+assistant).
+def _needs_system_merge(tokenizer: "PreTrainedTokenizerBase") -> bool:
+    """Return True if the tokenizer remaps system→user (requires manual merge).
 
-    Uses the same prompt templates as inference so training distribution
-    matches evaluation exactly.
+    Mirrors gemma.py's probe so training and inference use identical logic.
     """
+    try:
+        probe = tokenizer.apply_chat_template(
+            [{"role": "system", "content": "S"}, {"role": "user", "content": "U"}],
+            tokenize=False,
+            add_generation_prompt=False,
+        )
+        return probe.count("<start_of_turn>user") >= 2 or probe.count("<|im_start|>user") >= 2
+    except Exception:
+        return True
+
+
+def _render_one(
+    sample: Sample,
+    tokenizer: "PreTrainedTokenizerBase",
+    merge_system: bool,
+) -> str:
+    """Convert one Sample to a full chat-format string (system+user+assistant)."""
     msgs = build_messages(sample, shots=(), enable_thinking=False)
     chat = [{"role": m.role, "content": m.content} for m in msgs]
-    chat = _merge_system_into_first_user(chat)
+    if merge_system:
+        chat = _merge_system_into_first_user(chat)
     tmpl = get_template(sample["task"], sample["language"])
     chat.append({"role": "assistant", "content": tmpl.render_shot_assistant(sample)})
     return tokenizer.apply_chat_template(
@@ -77,7 +94,8 @@ def samples_to_chat_dataset(
     """Convert list[Sample] -> datasets.Dataset with a single 'text' column."""
     from datasets import Dataset
 
-    rows = [{"text": _render_one(s, tokenizer)} for s in samples]
+    merge_system = _needs_system_merge(tokenizer)
+    rows = [{"text": _render_one(s, tokenizer, merge_system)} for s in samples]
     return Dataset.from_list(rows)
 
 

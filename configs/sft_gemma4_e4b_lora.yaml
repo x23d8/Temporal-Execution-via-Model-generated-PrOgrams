@@ -16,7 +16,7 @@
 #   cfg = SFTRunConfig(**yaml.safe_load(open("configs/sft_gemma4_e4b_lora.yaml")))
 #   adapter_path = train_sft(cfg)
 
-model_name: google/gemma-4-E4B-it
+model_name: google/gemma-4-E4B
 dtype: bfloat16
 load_in_4bit: false          # set true for T4 QLoRA
 

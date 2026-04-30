@@ -1,8 +1,12 @@
 """Gemma-4-E4B-it wrapper — mirrors QwenChatLM / HFChatLM interface.
 
-Gemma does not support `enable_thinking`. System prompts are merged into
-the first user turn because Gemma's chat template converts the system role
-to a user role, which would otherwise produce two consecutive user turns.
+Gemma does not support `enable_thinking`.
+
+System-prompt handling: probed at load time via the tokenizer's chat template.
+- Older Gemma (≤3) remaps system→user, producing two consecutive user turns.
+  In that case we merge system content into the first user message manually.
+- Gemma-4 / 3n supports system role natively → pass it through unchanged.
+This matches how Ollama handles the system role for the same model.
 """
 
 from __future__ import annotations
@@ -16,7 +20,7 @@ DEFAULT_MODEL_NAME = "google/gemma-4-E4B-it"
 
 
 def _merge_system_into_first_user(chat: list[dict]) -> list[dict]:
-    """Prepend system content to first user message (Gemma convention)."""
+    """Prepend system content to first user message."""
     if not chat or chat[0]["role"] != "system":
         return chat
     sys_content = chat[0]["content"]
@@ -29,6 +33,24 @@ def _merge_system_into_first_user(chat: list[dict]) -> list[dict]:
         else:
             merged.append(msg)
     return merged
+
+
+def _needs_system_merge(tokenizer) -> bool:
+    """Return True if the tokenizer remaps system→user (requires manual merge).
+
+    Probes by rendering [system, user] and checking whether two user turns
+    appear in the output — the telltale sign of a system→user remap.
+    Mirrors hf.py's _normalize_chat_for_template logic.
+    """
+    try:
+        probe = tokenizer.apply_chat_template(
+            [{"role": "system", "content": "S"}, {"role": "user", "content": "U"}],
+            tokenize=False,
+            add_generation_prompt=False,
+        )
+        return probe.count("<start_of_turn>user") >= 2 or probe.count("<|im_start|>user") >= 2
+    except Exception:
+        return True  # safe default: merge
 
 
 @dataclass
@@ -52,6 +74,7 @@ class GemmaChatLM:
         self.config = config or GemmaConfig()
         self._model = None
         self._tokenizer = None
+        self._merge_needed: bool = True  # conservative default; updated in load()
 
     def load(self) -> None:
         import torch
@@ -69,6 +92,9 @@ class GemmaChatLM:
         if self._tokenizer.pad_token is None:
             self._tokenizer.pad_token = self._tokenizer.eos_token
             self._tokenizer.pad_token_id = self._tokenizer.eos_token_id
+
+        self._merge_needed = _needs_system_merge(self._tokenizer)
+        print(f"[GemmaChatLM] system→user merge needed: {self._merge_needed}")
 
         model_kwargs: dict[str, Any] = dict(device_map=cfg.device_map, **cfg.load_kwargs)
 
@@ -108,7 +134,8 @@ class GemmaChatLM:
         import torch
 
         chat = [{"role": m.role, "content": m.content} for m in messages]
-        chat = _merge_system_into_first_user(chat)
+        if self._merge_needed:
+            chat = _merge_system_into_first_user(chat)
 
         prompt_text = self._tokenizer.apply_chat_template(
             chat, tokenize=False, add_generation_prompt=True
