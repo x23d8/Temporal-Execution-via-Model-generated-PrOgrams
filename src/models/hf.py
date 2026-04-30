@@ -131,9 +131,17 @@ class HFChatLM:
         for messages in messages_list:
             chat = [{"role": m.role, "content": m.content} for m in messages]
             try:
-                text = tok.apply_chat_template(
-                    chat, tokenize=False, add_generation_prompt=True
-                )
+                try:
+                    # Models like Qwen3 accept enable_thinking in apply_chat_template
+                    text = tok.apply_chat_template(
+                        chat, tokenize=False, add_generation_prompt=True,
+                        enable_thinking=enable_thinking,
+                    )
+                except TypeError:
+                    # Tokenizer doesn't support enable_thinking (Gemma, Mistral, etc.)
+                    text = tok.apply_chat_template(
+                        chat, tokenize=False, add_generation_prompt=True
+                    )
             except Exception:
                 # Tokenizer has no built-in template — use our fallback
                 from jinja2 import Environment
