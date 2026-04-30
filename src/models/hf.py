@@ -185,11 +185,20 @@ class HFChatLM:
             chat = _normalize_chat_for_template(tok, chat)
             try:
                 try:
-                    # Models like Qwen3 accept enable_thinking in apply_chat_template
-                    text = tok.apply_chat_template(
-                        chat, tokenize=False, add_generation_prompt=True,
-                        enable_thinking=enable_thinking,
-                    )
+                    # Only pass enable_thinking=True to activate thinking mode.
+                    # Passing enable_thinking=False to Qwen3 adds /no_think which,
+                    # combined with the non-thinking system prompt, over-constrains
+                    # the model and causes it to emit an immediate EOS (empty output).
+                    # When False, omit the param and let the system prompt guide format.
+                    if enable_thinking:
+                        text = tok.apply_chat_template(
+                            chat, tokenize=False, add_generation_prompt=True,
+                            enable_thinking=True,
+                        )
+                    else:
+                        text = tok.apply_chat_template(
+                            chat, tokenize=False, add_generation_prompt=True,
+                        )
                 except TypeError:
                     # Tokenizer doesn't support enable_thinking (Gemma, Mistral, etc.)
                     text = tok.apply_chat_template(
@@ -211,13 +220,19 @@ class HFChatLM:
             truncation=True,
         ).to(device)
 
-        # Include model-specific turn-end tokens so generation stops after the
-        # answer turn instead of looping back into the prompt (Gemma: <end_of_turn>,
-        # Qwen: <|im_end|>, Llama3: <|eot_id|>).
-        eos_ids = [tok.eos_token_id]
+        # Build EOS list — tok.eos_token_id may be int or list[int] on newer models.
+        raw_eos = tok.eos_token_id
+        if isinstance(raw_eos, (list, tuple)):
+            eos_ids: list[int] = [t for t in raw_eos if isinstance(t, int)]
+        elif isinstance(raw_eos, int):
+            eos_ids = [raw_eos]
+        else:
+            eos_ids = []
+        # Add model-specific turn-end tokens (Gemma: <end_of_turn>, Qwen: <|im_end|>, Llama3: <|eot_id|>).
+        unk_id = getattr(tok, "unk_token_id", None)
         for turn_end in ["<end_of_turn>", "<|im_end|>", "<|eot_id|>"]:
             tid = tok.convert_tokens_to_ids(turn_end)
-            if tid and tid not in (tok.unk_token_id, tok.eos_token_id) and tid not in eos_ids:
+            if isinstance(tid, int) and tid and tid != unk_id and tid not in eos_ids:
                 eos_ids.append(tid)
 
         gen_kwargs: dict = dict(
@@ -245,7 +260,15 @@ class HFChatLM:
             # keep only the content that precedes it.
             m = _TEMPLATE_TAG_RE.search(text)
             if m:
-                text = text[:m.start()].strip()
+                cleaned = text[:m.start()].strip()
+                if not cleaned:
+                    # Tag at position 0 — try decoding without skip_special_tokens to
+                    # see what the model actually produced, then re-clean from raw.
+                    raw_text = tok.decode(new_ids, skip_special_tokens=False).strip()
+                    m2 = _TEMPLATE_TAG_RE.search(raw_text)
+                    cleaned = raw_text[:m2.start()].strip() if m2 else raw_text
+                    print(f"[HFChatLM] tag at pos 0 — raw decoded: {repr(raw_text[:120])}, kept: {repr(cleaned)}")
+                text = cleaned
             results.append(text)
 
         return results
