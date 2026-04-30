@@ -38,9 +38,29 @@ from src.models.ollama import OllamaChatLM, OllamaConfig
 from src.runner import RunConfig, run
 
 # ── paths ─────────────────────────────────────────────────────────────────────
-REPO_ROOT   = Path(__file__).parent
+def _detect_repo_root() -> Path:
+    """Return repo root, auto-detecting Colab vs local environment."""
+    # Colab: cloned repo lives under /content/
+    colab_candidates = [
+        Path("/content/Temporal-Execution-via-Model-generated-PrOgrams"),
+        Path("/content/temporal"),
+    ]
+    for p in colab_candidates:
+        if p.exists():
+            return p
+    # Fallback: directory containing this file
+    return Path(__file__).parent
+
+REPO_ROOT   = _detect_repo_root()
 OUTPUT_DIR  = REPO_ROOT / "outputs"
 DATASET_DIR = REPO_ROOT / "Dataset"
+
+def _is_colab() -> bool:
+    try:
+        import google.colab  # noqa: F401
+        return True
+    except ImportError:
+        return False
 
 # ── experiment table (mirrors notebook cells 1-12) ────────────────────────────
 EXPERIMENTS: list[dict] = [
@@ -246,6 +266,55 @@ def _model_slug(model_id: str) -> str:
     return re.sub(r"[^a-zA-Z0-9._-]", "_", model_id)
 
 
+def _resolve_out_root(args, slug: str | None = None) -> Path:
+    """Pick the output root, preferring a directory that already has predictions.
+
+    Priority:
+      1. Explicit --output-dir flag
+      2. Candidate paths that already contain predictions.jsonl (most progress wins)
+      3. Default: OUTPUT_DIR/<slug> for HF, OUTPUT_DIR for Ollama
+    """
+    if args.output_dir:
+        return Path(args.output_dir)
+
+    default = OUTPUT_DIR / slug if slug else OUTPUT_DIR
+    candidates: list[Path] = [default]
+
+    # Also check the flat OUTPUT_DIR when slug-based default is used
+    if slug and default != OUTPUT_DIR:
+        candidates.append(OUTPUT_DIR)
+
+    # On Colab, also probe the known repo path in case the user mounted elsewhere
+    if _is_colab():
+        for base in [Path("/content/Temporal-Execution-via-Model-generated-PrOgrams/outputs"),
+                     Path("/content/temporal/outputs")]:
+            if base != OUTPUT_DIR:
+                candidates.append(base / slug if slug else base)
+                candidates.append(base)  # flat fallback
+
+    def _count_predictions(root: Path) -> int:
+        """Count total prediction rows across all method/dataset subdirs."""
+        return sum(
+            sum(1 for _ in open(p, encoding="utf-8"))
+            for p in root.rglob("predictions.jsonl")
+            if p.exists()
+        )
+
+    best = default
+    best_count = _count_predictions(default)
+    for cand in candidates[1:]:
+        if not cand.exists():
+            continue
+        count = _count_predictions(cand)
+        if count > best_count:
+            best, best_count = cand, count
+
+    if best != default:
+        print(f"[main] Smart resume: found {best_count} existing predictions in {best} — using it as output root")
+
+    return best
+
+
 def _build_cfg(exp: dict, *, per_sample: bool, enable_thinking: bool,
                n_hypotheses: int, max_correction_attempts: int,
                output_dir: str = str(OUTPUT_DIR)) -> RunConfig:
@@ -397,7 +466,7 @@ def main() -> None:
 
         for model_id in model_ids:
             slug     = _model_slug(model_id)
-            out_root = Path(args.output_dir) if args.output_dir else OUTPUT_DIR / slug
+            out_root = _resolve_out_root(args, slug)
             out_root.mkdir(parents=True, exist_ok=True)
             print(f"\n{'═'*72}")
             print(f"  MODEL: {model_id}")
@@ -432,7 +501,7 @@ def main() -> None:
                 from src.models.hf import HFChatLM, HFConfig
 
                 slug     = _model_slug(args.hf_fallback)
-                out_root = Path(args.output_dir) if args.output_dir else OUTPUT_DIR / slug
+                out_root = _resolve_out_root(args, slug)
                 out_root.mkdir(parents=True, exist_ok=True)
 
                 hf_cfg = HFConfig(
@@ -454,7 +523,7 @@ def main() -> None:
                 )
                 return
         else:
-            out_root = Path(args.output_dir) if args.output_dir else OUTPUT_DIR
+            out_root = _resolve_out_root(args, slug=None)
             print(f"[main] Ollama model: {args.model_name}  |  Output: {out_root}")
             model_cfg = OllamaConfig(model_name=args.model_name, base_url=args.ollama_url)
             model = OllamaChatLM(model_cfg)
