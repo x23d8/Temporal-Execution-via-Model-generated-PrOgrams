@@ -23,6 +23,14 @@ class OllamaChatLM:
     def __init__(self, config: OllamaConfig | None = None):
         self.config = config or OllamaConfig()
 
+    @staticmethod
+    def is_available(base_url: str = "http://localhost:11434", timeout: int = 5) -> bool:
+        try:
+            urllib.request.urlopen(f"{base_url}/api/tags", timeout=timeout).close()
+            return True
+        except Exception:
+            return False
+
     def load(self) -> None:
         url = f"{self.config.base_url}/api/tags"
         try:

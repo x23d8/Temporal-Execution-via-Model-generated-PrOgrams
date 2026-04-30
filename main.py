@@ -338,6 +338,11 @@ def main() -> None:
                     help="Load HF model in 4-bit (BitsAndBytes) — recommended for Kaggle T4/P100")
     ap.add_argument("--load-in-8bit", action="store_true", dest="load_in_8bit",
                     help="Load HF model in 8-bit (BitsAndBytes)")
+    ap.add_argument("--hf-fallback", default=None, dest="hf_fallback",
+                    help=(
+                        "HuggingFace model ID to use when Ollama is not reachable. "
+                        "E.g. --hf-fallback google/gemma-2-2b-it"
+                    ))
     ap.add_argument("--list", action="store_true", help="print experiment table and exit")
     args = ap.parse_args()
 
@@ -400,14 +405,48 @@ def main() -> None:
 
     # ── Ollama path (default) ─────────────────────────────────────────────────
     else:
-        print(f"[main] Ollama model: {args.model_name}  |  Output: {OUTPUT_DIR}")
-        model_cfg = OllamaConfig(model_name=args.model_name, base_url=args.ollama_url)
-        model = OllamaChatLM(model_cfg)
-        model.load()
+        if not OllamaChatLM.is_available(args.ollama_url):
+            if args.hf_fallback:
+                print(
+                    f"[main] Ollama not reachable at {args.ollama_url} — "
+                    f"falling back to HF model: {args.hf_fallback}"
+                )
+                args.hf_models = args.hf_fallback
+                _hf_login(args.hf_token)
 
-        summary, failed = _run_experiments(selected, model, args.model_name, OUTPUT_DIR, args)
-        all_summary.extend(summary)
-        all_failed.extend(failed)
+                from src.models.hf import HFChatLM, HFConfig
+
+                slug     = _model_slug(args.hf_fallback)
+                out_root = OUTPUT_DIR / slug
+                out_root.mkdir(parents=True, exist_ok=True)
+
+                hf_cfg = HFConfig(
+                    model_name=args.hf_fallback,
+                    load_in_4bit=args.load_in_4bit,
+                    load_in_8bit=args.load_in_8bit,
+                )
+                model = HFChatLM(hf_cfg)
+                model.load()
+
+                summary, failed = _run_experiments(selected, model, args.hf_fallback, out_root, args)
+                all_summary.extend(summary)
+                all_failed.extend(failed)
+                model.unload()
+            else:
+                print(
+                    f"[main] ✗ Ollama not reachable at {args.ollama_url}. "
+                    f"Start Ollama or pass --hf-fallback MODEL_ID to use a HuggingFace model instead."
+                )
+                return
+        else:
+            print(f"[main] Ollama model: {args.model_name}  |  Output: {OUTPUT_DIR}")
+            model_cfg = OllamaConfig(model_name=args.model_name, base_url=args.ollama_url)
+            model = OllamaChatLM(model_cfg)
+            model.load()
+
+            summary, failed = _run_experiments(selected, model, args.model_name, OUTPUT_DIR, args)
+            all_summary.extend(summary)
+            all_failed.extend(failed)
 
     # ── Final summary ─────────────────────────────────────────────────────────
     total = len(all_summary) + len(all_failed)
