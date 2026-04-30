@@ -145,6 +145,14 @@ def train_sft(cfg: SFTRunConfig) -> str:
         tokenizer.pad_token_id = tokenizer.eos_token_id
     tokenizer.padding_side = "right"  # Gemma standard
 
+    # Base model tokenizers (non -it) ship without a chat_template.
+    # Borrow it from the instruction-tuned variant so apply_chat_template works.
+    if not getattr(tokenizer, "chat_template", None):
+        it_name = cfg.model_name if cfg.model_name.endswith("-it") else cfg.model_name + "-it"
+        print(f"[sft] no chat_template on tokenizer — borrowing from {it_name}")
+        _it_tok = AutoTokenizer.from_pretrained(it_name)
+        tokenizer.chat_template = _it_tok.chat_template
+
     # ── 3. Base model ─────────────────────────────────────────────────────────
     dtype_map = {
         "float16": torch.float16,

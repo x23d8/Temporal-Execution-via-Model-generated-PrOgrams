@@ -1,4 +1,4 @@
-# SFT (LoRA) for Gemma-4-E4B-it on VLSP DateArith VI — Phase 2.
+# SFT (LoRA) for Gemma-4-E4B on VLSP DateArith VI — Phase 2.
 # Maps 1-to-1 with src.training.sft.SFTRunConfig.
 #
 # Train pool = rows 1500..2999 of date_training_dataset.txt
@@ -33,14 +33,12 @@ lora_r: 16
 lora_alpha: 32
 lora_dropout: 0.05
 lora_target_modules:
-  - q_proj
-  - k_proj
-  - v_proj
-  - o_proj
-  - gate_proj
-  - up_proj
-  - down_proj
-
+  - q_proj.linear
+  - k_proj.linear
+  - v_proj.linear
+  - post.linear
+  - ffw_layer_1.linear
+  - ffw_layer_2.linear
 num_epochs: 3
 per_device_batch_size: 1
 gradient_accumulation_steps: 8    # effective batch size = 8

@@ -93,6 +93,13 @@ class GemmaChatLM:
             self._tokenizer.pad_token = self._tokenizer.eos_token
             self._tokenizer.pad_token_id = self._tokenizer.eos_token_id
 
+        # Base model tokenizers ship without chat_template; borrow from -it variant.
+        if not getattr(self._tokenizer, "chat_template", None):
+            it_name = cfg.model_name if cfg.model_name.endswith("-it") else cfg.model_name + "-it"
+            print(f"[GemmaChatLM] no chat_template — borrowing from {it_name}")
+            _it_tok = AutoTokenizer.from_pretrained(it_name)
+            self._tokenizer.chat_template = _it_tok.chat_template
+
         self._merge_needed = _needs_system_merge(self._tokenizer)
         print(f"[GemmaChatLM] system→user merge needed: {self._merge_needed}")
 
