@@ -225,6 +225,15 @@ def _hf_login(token: str | None = None) -> None:
         if resolved:
             print("[main] HF token loaded from environment variable")
 
+    if not resolved:
+        try:
+            from huggingface_hub import HfFolder
+            resolved = HfFolder.get_token()
+            if resolved:
+                print("[main] HF token loaded from huggingface_hub cache")
+        except Exception:
+            pass
+
     if resolved:
         from huggingface_hub import login
         login(token=resolved, add_to_git_credential=False)
@@ -343,6 +352,12 @@ def main() -> None:
                         "HuggingFace model ID to use when Ollama is not reachable. "
                         "E.g. --hf-fallback google/gemma-2-2b-it"
                     ))
+    ap.add_argument("--output-dir", default=None, dest="output_dir",
+                    help=(
+                        "Override the output root directory. Useful when resuming from uploaded "
+                        "outputs that are not in the default model-slug subdirectory. "
+                        "E.g. --output-dir outputs/my_prev_run"
+                    ))
     ap.add_argument("--list", action="store_true", help="print experiment table and exit")
     args = ap.parse_args()
 
@@ -382,7 +397,7 @@ def main() -> None:
 
         for model_id in model_ids:
             slug     = _model_slug(model_id)
-            out_root = OUTPUT_DIR / slug
+            out_root = Path(args.output_dir) if args.output_dir else OUTPUT_DIR / slug
             out_root.mkdir(parents=True, exist_ok=True)
             print(f"\n{'═'*72}")
             print(f"  MODEL: {model_id}")
@@ -417,7 +432,7 @@ def main() -> None:
                 from src.models.hf import HFChatLM, HFConfig
 
                 slug     = _model_slug(args.hf_fallback)
-                out_root = OUTPUT_DIR / slug
+                out_root = Path(args.output_dir) if args.output_dir else OUTPUT_DIR / slug
                 out_root.mkdir(parents=True, exist_ok=True)
 
                 hf_cfg = HFConfig(
@@ -439,12 +454,13 @@ def main() -> None:
                 )
                 return
         else:
-            print(f"[main] Ollama model: {args.model_name}  |  Output: {OUTPUT_DIR}")
+            out_root = Path(args.output_dir) if args.output_dir else OUTPUT_DIR
+            print(f"[main] Ollama model: {args.model_name}  |  Output: {out_root}")
             model_cfg = OllamaConfig(model_name=args.model_name, base_url=args.ollama_url)
             model = OllamaChatLM(model_cfg)
             model.load()
 
-            summary, failed = _run_experiments(selected, model, args.model_name, OUTPUT_DIR, args)
+            summary, failed = _run_experiments(selected, model, args.model_name, out_root, args)
             all_summary.extend(summary)
             all_failed.extend(failed)
 
