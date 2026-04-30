@@ -7,8 +7,7 @@ Supports 4-bit quantisation (BitsAndBytes) for T4 / P100 budgets.
 from __future__ import annotations
 
 import gc
-from dataclasses import dataclass, field
-from typing import Optional
+from dataclasses import dataclass
 
 from .base import ChatMessage
 
@@ -21,15 +20,14 @@ class HFConfig:
     load_in_4bit: bool = False           # BitsAndBytes 4-bit — saves ~4× VRAM
     load_in_8bit: bool = False           # BitsAndBytes 8-bit — saves ~2× VRAM
     trust_remote_code: bool = False
-    max_new_tokens: int = 256
-    temperature: float = 0.0
-    # Chat-template fallback when the tokenizer has no built-in template
+    # Generic fallback when the tokenizer has no built-in chat template.
+    # Uses ChatML format which is broadly understood by instruction-tuned models.
     fallback_template: str = (
         "{% for m in messages %}"
-        "{% if m['role'] == 'system' %}<start_of_turn>user\n{{ m['content'] }}<end_of_turn>\n"
-        "{% elif m['role'] == 'user' %}<start_of_turn>user\n{{ m['content'] }}<end_of_turn>\n"
-        "{% elif m['role'] == 'assistant' %}<start_of_turn>model\n{{ m['content'] }}<end_of_turn>\n"
-        "{% endif %}{% endfor %}<start_of_turn>model\n"
+        "{% if m['role'] == 'system' %}<|im_start|>system\n{{ m['content'] }}<|im_end|>\n"
+        "{% elif m['role'] == 'user' %}<|im_start|>user\n{{ m['content'] }}<|im_end|>\n"
+        "{% elif m['role'] == 'assistant' %}<|im_start|>assistant\n{{ m['content'] }}<|im_end|>\n"
+        "{% endif %}{% endfor %}<|im_start|>assistant\n"
     )
 
 
@@ -158,10 +156,19 @@ class HFChatLM:
             truncation=True,
         ).to(device)
 
+        # Include model-specific turn-end tokens so generation stops after the
+        # answer turn instead of looping back into the prompt (Gemma: <end_of_turn>,
+        # Qwen: <|im_end|>, Llama3: <|eot_id|>).
+        eos_ids = [tok.eos_token_id]
+        for turn_end in ["<end_of_turn>", "<|im_end|>", "<|eot_id|>"]:
+            tid = tok.convert_tokens_to_ids(turn_end)
+            if tid and tid not in (tok.unk_token_id, tok.eos_token_id) and tid not in eos_ids:
+                eos_ids.append(tid)
+
         gen_kwargs: dict = dict(
             max_new_tokens=max_new_tokens,
             pad_token_id=tok.pad_token_id,
-            eos_token_id=tok.eos_token_id,
+            eos_token_id=eos_ids,
         )
         if do_sample and temperature > 0:
             gen_kwargs["do_sample"] = True
@@ -169,7 +176,7 @@ class HFChatLM:
         else:
             gen_kwargs["do_sample"] = False
 
-        with torch.no_grad():
+        with torch.inference_mode():
             output_ids = mdl.generate(**inputs, **gen_kwargs)
 
         # Decode only the newly generated tokens (strip the prompt)

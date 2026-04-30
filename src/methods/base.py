@@ -21,8 +21,8 @@ class Method(Protocol):
 
 # Default generation hyperparams cho evaluation.
 DEFAULT_GEN_KWARGS = {
-    "duration": {"max_new_tokens": 8, "do_sample": False, "temperature": 0.0},
-    "date_arith": {"max_new_tokens": 24, "do_sample": False, "temperature": 0.0},
+    "duration":   {"max_new_tokens": 16,  "do_sample": False, "temperature": 0.0},
+    "date_arith": {"max_new_tokens": 64,  "do_sample": False, "temperature": 0.0},
 }
 
 
