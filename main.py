@@ -276,6 +276,8 @@ def _resolve_out_root(args, slug: str | None = None) -> Path:
     """
     if args.output_dir:
         return Path(args.output_dir)
+    if args.no_resume:
+        return OUTPUT_DIR / slug if slug else OUTPUT_DIR
 
     default = OUTPUT_DIR / slug if slug else OUTPUT_DIR
     candidates: list[Path] = [default]
@@ -317,7 +319,9 @@ def _resolve_out_root(args, slug: str | None = None) -> Path:
 
 def _build_cfg(exp: dict, *, per_sample: bool, enable_thinking: bool,
                n_hypotheses: int, max_correction_attempts: int,
-               output_dir: str = str(OUTPUT_DIR)) -> RunConfig:
+               output_dir: str = str(OUTPUT_DIR),
+               resume_predictions: bool = True,
+               strict_output: bool = False) -> RunConfig:
     return RunConfig(
         experiment_name=exp["experiment_name"],
         method=exp["method"],
@@ -337,6 +341,8 @@ def _build_cfg(exp: dict, *, per_sample: bool, enable_thinking: bool,
         n_hypotheses=n_hypotheses,
         max_correction_attempts=max_correction_attempts,
         inference_batch_size=1,
+        resume_predictions=resume_predictions,
+        strict_output=strict_output,
     )
 
 
@@ -364,8 +370,13 @@ def _run_experiments(
             n_hypotheses=args.n_hypotheses,
             max_correction_attempts=args.max_correction_attempts,
             output_dir=str(out_root),
+            resume_predictions=not args.no_resume,
+            strict_output=args.strict_output,
         )
         cfg.model_name = model_label
+        if exp["method"] == "free_think":
+            # Keep free_think semantics stable across runs/backends.
+            cfg.enable_thinking = True
 
         try:
             result  = run(cfg, model=model)
@@ -427,6 +438,10 @@ def main() -> None:
                         "outputs that are not in the default model-slug subdirectory. "
                         "E.g. --output-dir outputs/my_prev_run"
                     ))
+    ap.add_argument("--no-resume", action="store_true", dest="no_resume",
+                    help="disable smart-resume and overwrite predictions.jsonl for each experiment")
+    ap.add_argument("--strict-output", action="store_true", dest="strict_output",
+                    help="fail fast if predictions.jsonl already exists and is non-empty")
     ap.add_argument("--list", action="store_true", help="print experiment table and exit")
     args = ap.parse_args()
 

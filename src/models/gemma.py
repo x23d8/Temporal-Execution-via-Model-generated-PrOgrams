@@ -67,7 +67,7 @@ class GemmaChatLM:
     """Gemma-4-E4B-it inference wrapper.
 
     Matches the ChatLM protocol so it can replace QwenChatLM/HFChatLM in
-    any method or runner.
+    any method or runner.  Supports batched generation via generate_batch().
     """
 
     def __init__(self, config: GemmaConfig | None = None) -> None:
@@ -116,6 +116,15 @@ class GemmaChatLM:
             print(f"[GemmaChatLM] loading {cfg.model_name} in 4-bit QLoRA mode")
         else:
             model_kwargs["torch_dtype"] = torch_dtype
+            # Flash Attention 2: 2–4× speedup on attention for Ampere+ GPUs.
+            # Requires float16/bfloat16 and the flash-attn package.
+            if torch.cuda.is_available() and torch_dtype != torch.float32:
+                try:
+                    import flash_attn  # noqa: F401
+                    model_kwargs["attn_implementation"] = "flash_attention_2"
+                    print("[GemmaChatLM] Flash Attention 2 enabled")
+                except ImportError:
+                    pass  # flash-attn not installed — standard attention
 
         self._model = AutoModelForCausalLM.from_pretrained(cfg.model_name, **model_kwargs)
 
@@ -129,43 +138,32 @@ class GemmaChatLM:
         # Skipped for 4-bit quantized models (BitsAndBytes + torch.compile don't mix).
         if not cfg.load_in_4bit:
             try:
-                import torch as _torch
-                if _torch.cuda.is_available():
-                    props = _torch.cuda.get_device_properties(0)
+                if torch.cuda.is_available():
+                    props = torch.cuda.get_device_properties(0)
                     if props.total_memory > 20 * 1024 ** 3:
-                        _torch.backends.cuda.matmul.allow_tf32 = True
-                        _torch.backends.cudnn.allow_tf32 = True
-                        self._model = _torch.compile(self._model, mode="reduce-overhead")
+                        torch.backends.cuda.matmul.allow_tf32 = True
+                        torch.backends.cudnn.allow_tf32 = True
+                        self._model = torch.compile(self._model, mode="reduce-overhead")
                         print(f"[GemmaChatLM] {props.name} — torch.compile + tf32 enabled")
-            except Exception:
-                pass
+                        # Warmup: drain JIT compilation so timed inference isn't penalised.
+                        print("[GemmaChatLM] warming up compiled model (3 passes)...")
+                        _w = self._tokenizer("warmup", return_tensors="pt").to(self._model.device)
+                        for _ in range(3):
+                            with torch.inference_mode():
+                                self._model.generate(
+                                    **_w, max_new_tokens=4, do_sample=False,
+                                    pad_token_id=self._tokenizer.pad_token_id,
+                                )
+                        del _w
+                        print("[GemmaChatLM] warmup done")
+            except Exception as e:
+                print(f"[GemmaChatLM] compile/warmup skipped: {e}")
 
         print(f"[GemmaChatLM] ready — {cfg.model_name}")
 
-    def generate(
-        self,
-        messages: list[ChatMessage],
-        *,
-        max_new_tokens: int = 64,
-        temperature: float = 0.0,
-        do_sample: bool = False,
-        enable_thinking: bool = False,  # kept for API compat, ignored for Gemma
-    ) -> str:
-        if self._model is None or self._tokenizer is None:
-            self.load()
+    # ── Helpers ───────────────────────────────────────────────────────────────
 
-        import torch
-
-        chat = [{"role": m.role, "content": m.content} for m in messages]
-        if self._merge_needed:
-            chat = _merge_system_into_first_user(chat)
-
-        prompt_text = self._tokenizer.apply_chat_template(
-            chat, tokenize=False, add_generation_prompt=True
-        )
-        inputs = self._tokenizer(prompt_text, return_tensors="pt").to(self._model.device)
-
-        # Build EOS list — add <end_of_turn> so generation stops cleanly.
+    def _build_eos_ids(self) -> list[int]:
         eos_ids: list[int] = []
         raw_eos = self._tokenizer.eos_token_id
         if isinstance(raw_eos, list):
@@ -176,7 +174,61 @@ class GemmaChatLM:
         tid = self._tokenizer.convert_tokens_to_ids("<end_of_turn>")
         if isinstance(tid, int) and tid and tid != unk_id and tid not in eos_ids:
             eos_ids.append(tid)
+        return eos_ids
 
+    # ── Inference ─────────────────────────────────────────────────────────────
+
+    def generate(
+        self,
+        messages: list[ChatMessage],
+        *,
+        max_new_tokens: int = 64,
+        temperature: float = 0.0,
+        do_sample: bool = False,
+        enable_thinking: bool = False,  # kept for API compat, ignored for Gemma
+    ) -> str:
+        return self.generate_batch(
+            [messages],
+            max_new_tokens=max_new_tokens,
+            temperature=temperature,
+            do_sample=do_sample,
+            enable_thinking=enable_thinking,
+        )[0]
+
+    def generate_batch(
+        self,
+        messages_list: list[list[ChatMessage]],
+        *,
+        max_new_tokens: int = 64,
+        temperature: float = 0.0,
+        do_sample: bool = False,
+        enable_thinking: bool = False,  # kept for API compat, ignored for Gemma
+    ) -> list[str]:
+        if self._model is None or self._tokenizer is None:
+            self.load()
+
+        import torch
+
+        prompts: list[str] = []
+        for messages in messages_list:
+            chat = [{"role": m.role, "content": m.content} for m in messages]
+            if self._merge_needed:
+                chat = _merge_system_into_first_user(chat)
+            prompts.append(
+                self._tokenizer.apply_chat_template(
+                    chat, tokenize=False, add_generation_prompt=True
+                )
+            )
+
+        # Left-pad so all sequences are right-aligned at the generation boundary.
+        orig_side = self._tokenizer.padding_side
+        self._tokenizer.padding_side = "left"
+        inputs = self._tokenizer(
+            prompts, return_tensors="pt", padding=True, truncation=True
+        ).to(self._model.device)
+        self._tokenizer.padding_side = orig_side
+
+        eos_ids = self._build_eos_ids()
         gen_kwargs: dict[str, Any] = {
             "max_new_tokens": max_new_tokens,
             "pad_token_id": self._tokenizer.pad_token_id,
@@ -191,5 +243,12 @@ class GemmaChatLM:
         with torch.inference_mode():
             output_ids = self._model.generate(**inputs, **gen_kwargs)
 
-        new_tokens = output_ids[0, inputs["input_ids"].shape[1]:]
-        return self._tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
+        # Strip the (left-padded) prompt prefix — all seqs share the same padded length.
+        input_len = inputs["input_ids"].shape[1]
+        results: list[str] = []
+        for ids in output_ids:
+            new_tokens = ids[input_len:]
+            results.append(
+                self._tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
+            )
+        return results

@@ -59,6 +59,8 @@ class RunConfig:
     use_planner: bool = True                 # Layer 1: CoT planner
     use_kb_for_duration: bool = True         # Layer 2B: KB hint for duration
     use_retrospective_verify: bool = True    # Layer 5: retrospective verifier
+    resume_predictions: bool = True          # resume from existing predictions.jsonl
+    strict_output: bool = False              # fail if predictions already exist
 
 
 def load_config(path: str | Path) -> RunConfig:
@@ -97,6 +99,16 @@ def _summary_row(cfg: RunConfig, metrics: dict, avg_time: float, n: int) -> dict
 def _append_summary(path: Path, row: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     header_needed = not path.exists()
+
+    # If a previous process left the file without a trailing newline, ensure
+    # the next CSV row starts on a new line instead of being concatenated.
+    if not header_needed and path.stat().st_size > 0:
+        with open(path, "rb+") as f:
+            f.seek(-1, 2)
+            if f.read(1) != b"\n":
+                f.seek(0, 2)
+                f.write(b"\n")
+
     with open(path, "a", encoding="utf-8", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=list(row.keys()))
         if header_needed:
@@ -213,12 +225,24 @@ def run(
     out_dir.mkdir(parents=True, exist_ok=True)
     pred_path = out_dir / "predictions.jsonl"
 
-    existing = list(read_jsonl(pred_path)) if pred_path.exists() else []
-    records = existing
-    times = [r["elapsed_sec"] for r in existing]
-    i = len(existing)
-    if i:
-        print(f"[runner] resuming from sample {i}/{n} ({i} already saved, {n - i} remaining)")
+    if cfg.strict_output and pred_path.exists() and pred_path.stat().st_size > 0:
+        raise RuntimeError(
+            f"strict_output=True and predictions already exist: {pred_path}. "
+            "Use a fresh --output-dir or disable strict mode."
+        )
+
+    if cfg.resume_predictions and pred_path.exists():
+        existing = list(read_jsonl(pred_path))
+        records = existing
+        times = [r["elapsed_sec"] for r in existing]
+        i = len(existing)
+        if i:
+            print(f"[runner] resuming from sample {i}/{n} ({i} already saved, {n - i} remaining)")
+    else:
+        existing = []
+        i = 0
+        if pred_path.exists() and pred_path.stat().st_size > 0:
+            print(f"[runner] resume disabled -> overwriting existing predictions: {pred_path}")
 
     with open(pred_path, "a" if i else "w", encoding="utf-8") as pred_f:
         while i < n:
@@ -317,6 +341,8 @@ def main() -> None:
     ap.add_argument("--verbose", action="store_true", help="override cfg.verbose=True")
     ap.add_argument("--verbose-first-n", type=int, default=None)
     ap.add_argument("--verbose-every", type=int, default=None)
+    ap.add_argument("--no-resume", action="store_true", help="disable resume; overwrite predictions.jsonl")
+    ap.add_argument("--strict-output", action="store_true", help="fail if predictions.jsonl already exists")
     args = ap.parse_args()
     cfg = load_config(args.config)
     if args.verbose:
@@ -325,6 +351,10 @@ def main() -> None:
         cfg.verbose_first_n = args.verbose_first_n
     if args.verbose_every is not None:
         cfg.verbose_every = args.verbose_every
+    if args.no_resume:
+        cfg.resume_predictions = False
+    if args.strict_output:
+        cfg.strict_output = True
     run(cfg)
 
 

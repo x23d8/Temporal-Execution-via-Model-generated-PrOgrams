@@ -49,10 +49,11 @@ def build_extract_normalize(model: ChatLM, **kwargs: Any) -> ExtractNormalizeMet
 
 
 def build_free_think(model: ChatLM, **kwargs: Any) -> FreeThinkMethod:
-    # Default enable_thinking=True — that's the whole point of this method.
+    # Always keep thinking ON for free_think; disabling it changes method semantics
+    # and makes cross-run comparisons inconsistent.
     return FreeThinkMethod(
         model=model,
-        enable_thinking=kwargs.get("enable_thinking", True),
+        enable_thinking=True,
     )
 
 
