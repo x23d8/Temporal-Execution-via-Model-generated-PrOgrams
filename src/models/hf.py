@@ -7,9 +7,17 @@ Supports 4-bit quantisation (BitsAndBytes) for T4 / P100 budgets.
 from __future__ import annotations
 
 import gc
+import re
 from dataclasses import dataclass
 
 from .base import ChatMessage
+
+# Matches any turn-boundary template tag that should never appear in a clean answer.
+# If the decoded output contains one, everything from that point is prompt echo.
+_TEMPLATE_TAG_RE = re.compile(
+    r"<\|im_end\|>|<\|im_start\|>|<end_of_turn>|<start_of_turn>|<\|eot_id\|>",
+    re.IGNORECASE,
+)
 
 
 def _merge_system_into_first_user(chat: list[dict]) -> list[dict]:
@@ -46,8 +54,10 @@ def _normalize_chat_for_template(tok, chat: list[dict]) -> list[dict]:
             [{"role": "system", "content": "S"}, {"role": "user", "content": "U"}],
             tokenize=False, add_generation_prompt=False,
         )
-        # Gemma maps system→user: two <start_of_turn>user blocks appear
-        if probe.count("<start_of_turn>user") >= 2:
+        # Detect system→user remapping in both Gemma and ChatML format:
+        #   Gemma:  <start_of_turn>user appears twice
+        #   ChatML: <|im_start|>user appears twice
+        if probe.count("<start_of_turn>user") >= 2 or probe.count("<|im_start|>user") >= 2:
             return _merge_system_into_first_user(chat)
     except Exception:
         pass
@@ -230,6 +240,12 @@ class HFChatLM:
         for ids in output_ids:
             new_ids = ids[input_len:]
             text = tok.decode(new_ids, skip_special_tokens=True).strip()
+            # If any template tag survived decoding (generated as text rather than
+            # a special token), everything from that tag onwards is prompt echo —
+            # keep only the content that precedes it.
+            m = _TEMPLATE_TAG_RE.search(text)
+            if m:
+                text = text[:m.start()].strip()
             results.append(text)
 
         return results
