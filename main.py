@@ -65,15 +65,15 @@ def _is_colab() -> bool:
 # ── experiment table (mirrors notebook cells 1-12) ────────────────────────────
 EXPERIMENTS: list[dict] = [
     # Zero-shot (EXP 1-4)
-    # dict(experiment_name="zero_shot_udst_duration",    method="zero_shot",    dataset="udst_duration",  k_shot=0),
+    dict(experiment_name="zero_shot_udst_duration",    method="zero_shot",    dataset="udst_duration",  k_shot=0),
     dict(experiment_name="zero_shot_bigbench_date",    method="zero_shot",    dataset="bigbench_date",  k_shot=0),
     dict(experiment_name="zero_shot_vlsp_date",        method="zero_shot",    dataset="vlsp_date",      k_shot=0),
-    # dict(experiment_name="zero_shot_vlsp_duration",    method="zero_shot",    dataset="vlsp_duration",  k_shot=0),
+    dict(experiment_name="zero_shot_vlsp_duration",    method="zero_shot",    dataset="vlsp_duration",  k_shot=0),
     # Few-shot (EXP 5-8)
-    # dict(experiment_name="few_shot_udst_duration",     method="few_shot",     dataset="udst_duration",  k_shot=4),
+    dict(experiment_name="few_shot_udst_duration",     method="few_shot",     dataset="udst_duration",  k_shot=4),
     dict(experiment_name="few_shot_bigbench_date",     method="few_shot",     dataset="bigbench_date",  k_shot=3),
     dict(experiment_name="few_shot_vlsp_date",         method="few_shot",     dataset="vlsp_date",      k_shot=3),
-    # dict(experiment_name="few_shot_vlsp_duration",     method="few_shot",     dataset="vlsp_duration",  k_shot=4),
+    dict(experiment_name="few_shot_vlsp_duration",     method="few_shot",     dataset="vlsp_duration",  k_shot=4),
     # Symbolic CoT (EXP 9-12)
     dict(experiment_name="symbolic_cot_udst_duration", method="symbolic_cot", dataset="udst_duration",  k_shot=0),
     dict(experiment_name="symbolic_cot_bigbench_date", method="symbolic_cot", dataset="bigbench_date",  k_shot=0),
