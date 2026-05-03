@@ -1,7 +1,0 @@
-timestamp,experiment,method,dataset,k_shot,enable_thinking,seed,model,num_samples,avg_inference_sec,metric,score,parse_fail
-2026-04-27T22:07:25,zero_shot_bigbench_date,zero_shot,bigbench_date,0,True,42,gemma4:e4b,369,3.1421,accuracy,0.3523,1
-2026-04-28T10:25:43,free_think_bigbench_date,free_think,bigbench_date,0,False,42,gemma4:e4b,369,20.338,accuracy,0.6883,11
-2026-04-28T18:19:48,free_think_bigbench_date,free_think,bigbench_date,0,False,42,gemma4:e4b,369,20.338,accuracy,0.6883,11
-2026-04-28T18:23:24,free_think_bigbench_date,free_think,bigbench_date,0,False,42,gemma4:e4b,369,20.338,accuracy,0.6883,11
-2026-04-28T18:29:22,free_think_bigbench_date,free_think,bigbench_date,0,False,42,gemma4:e4b,369,20.338,accuracy,0.6883,11
-2026-04-29T04:08:34,free_think_bigbench_date,free_think,bigbench_date,0,False,42,gemma4:e4b,369,20.338,accuracy,0.6883,11
