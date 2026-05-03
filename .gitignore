@@ -29,8 +29,7 @@ Temporal_Reasoning_Qwen3_8B/
 # ============================================================================
 # OUTPUTS & RESULTS (regenerable)
 # ============================================================================
-outputs/free_think
-results/
+outputs
 logs/
 *.log
 
