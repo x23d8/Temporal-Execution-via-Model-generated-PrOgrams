@@ -52,24 +52,28 @@ class HybridTemporalModel(nn.Module):
         self.tokenizer = tokenizer
         self.backbone = backbone
 
+        # Use backbone's actual hidden size — config.d_model may not match
+        # (e.g. Qwen2.5-7B reports hidden_size=4096 at runtime despite docs)
+        backbone_d = backbone.config.hidden_size
+
         # Layer 2
         self.time_embedding = OptimalHybridTimeEmbedding(
-            d_model=config.d_model,
+            d_model=backbone_d,
             n_learned_freq=config.n_learned_freq,
             n_random_freq=config.n_random_freq,
         )
 
         # Layer 3
         self.fusion = OptimalFusion(
-            d_model=config.d_model,
+            d_model=backbone_d,
             gate_init=config.gate_init,
             gate_threshold=config.gate_threshold,
         )
 
         # Layer 5
-        self.pooler = AttentionPooling(d_model=config.d_model)
-        self.arith_head = ArithmeticHead(d_model=config.d_model)
-        self.dur_head = DurationHead(d_model=config.d_model)
+        self.pooler = AttentionPooling(d_model=backbone_d)
+        self.arith_head = ArithmeticHead(d_model=backbone_d)
+        self.dur_head = DurationHead(d_model=backbone_d)
 
     def get_token_embeddings(
         self,
@@ -118,8 +122,8 @@ class HybridTemporalModel(nn.Module):
         # Layer 1 — token embeddings (frozen)
         token_emb = self.get_token_embeddings(input_ids)  # [B, S, D]
 
-        # Layer 2 — time embedding
-        time_emb = self.time_embedding(timestamps)  # [B, D]
+        # Layer 2 — time embedding (align dtype to backbone compute dtype)
+        time_emb = self.time_embedding(timestamps.to(token_emb.dtype))  # [B, D]
 
         # Layer 3 — fusion
         fused, gate_reg_loss = self.fusion(token_emb, time_emb)  # [B, S, D]
@@ -128,9 +132,9 @@ class HybridTemporalModel(nn.Module):
         outputs = self.backbone(
             inputs_embeds=fused,
             attention_mask=attention_mask,
-            output_hidden_states=False,
+            output_hidden_states=True,
         )
-        hidden = outputs.last_hidden_state  # [B, S, D]
+        hidden = outputs.hidden_states[-1]  # [B, S, D]
 
         # Layer 5 — pooling + heads
         pooled = self.pooler(hidden, attention_mask)  # [B, D]
