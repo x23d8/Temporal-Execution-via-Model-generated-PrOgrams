@@ -75,6 +75,11 @@ class HybridTemporalModel(nn.Module):
         self.arith_head = ArithmeticHead(d_model=backbone_d)
         self.dur_head = DurationHead(d_model=backbone_d)
 
+        # Cast all custom layers to backbone compute dtype (e.g. bfloat16 with 4-bit quant)
+        _compute_dtype = next(backbone.get_input_embeddings().parameters()).dtype
+        for m in (self.time_embedding, self.fusion, self.pooler, self.arith_head, self.dur_head):
+            m.to(_compute_dtype)
+
     def get_token_embeddings(
         self,
         input_ids: torch.Tensor,
