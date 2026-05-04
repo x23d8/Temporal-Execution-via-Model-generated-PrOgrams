@@ -414,7 +414,7 @@ class PhaseAwareTrainer:
             ]
             all_rewards.extend(rewards)
 
-            reward_tensor = torch.tensor(rewards, device=arith_pred.device, dtype=torch.float32)
+            reward_tensor = torch.tensor(rewards, device=arith_pred.device, dtype=arith_pred.dtype)
             policy_loss = -(reward_tensor * (arith_pred.squeeze() + dur_pred.squeeze())).mean()
             rollout_losses.append(policy_loss)
 

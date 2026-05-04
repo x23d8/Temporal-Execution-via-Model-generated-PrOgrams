@@ -82,6 +82,11 @@ def total_loss(
     dur_pred_sq = dur_pred.squeeze()
     end_pred_sq = end_pred.squeeze()
 
+    # Cast labels to match model output dtype (e.g. bfloat16 with 4-bit backbone)
+    arith_true = arith_true.to(arith_pred_sq.dtype)
+    dur_true = dur_true.to(dur_pred_sq.dtype)
+    start_times = start_times.to(dur_pred_sq.dtype)
+
     L_arith = F.mse_loss(arith_pred_sq, arith_true)
     L_dur = F.mse_loss(dur_pred_sq, dur_true) + lambda_torus * wrapped_torus_loss(dur_pred_sq, dur_true)
     L_consist = consistency_loss(start_times, dur_pred_sq, end_pred_sq)
