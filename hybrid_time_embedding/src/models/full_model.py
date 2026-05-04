@@ -159,8 +159,13 @@ class HybridTemporalModel(nn.Module):
         for p in self.backbone.get_input_embeddings().parameters():
             p.requires_grad = False
 
-        # Freeze first n_frozen blocks (Qwen2 uses model.layers)
-        layers = self.backbone.model.layers if hasattr(self.backbone, "model") else self.backbone.layers
+        # Unwrap PeftModel → CausalLM → inner transformer to reach .layers
+        inner = self.backbone
+        if hasattr(inner, "model"):
+            inner = inner.model   # PeftModel → Qwen3ForCausalLM
+        if hasattr(inner, "model"):
+            inner = inner.model   # Qwen3ForCausalLM → Qwen3Model
+        layers = inner.layers
         for i, layer in enumerate(layers):
             if i < n_frozen:
                 for p in layer.parameters():
