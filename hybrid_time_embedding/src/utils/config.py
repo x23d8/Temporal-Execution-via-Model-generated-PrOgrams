@@ -58,7 +58,7 @@ class HybridConfig:
     # ── Checkpointing ───────────────────────────────
     checkpoint_top_k: int = 3
     checkpoint_improvement_threshold: float = 0.01
-    checkpoint_save_every_steps: int = 1000
+    checkpoint_save_every_steps: int = 100
 
     # ── Logging ─────────────────────────────────────
     log_every_steps: int = 50

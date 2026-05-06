@@ -227,12 +227,14 @@ class PhaseAwareTrainer:
         _set_seed(self.config.seed)
         self.logger.info("=== Phase 2: Supervised Fine-Tuning ===")
 
-        # Load best phase1 checkpoint
+        # Load best phase1 checkpoint, then reset best_mae so Phase 2
+        # establishes its own baseline instead of competing with Phase 1's score.
         try:
             self.saver.load_best(self.model)
             self.logger.info("Loaded best Phase 1 checkpoint.")
         except FileNotFoundError:
             self.logger.warning("No Phase 1 checkpoint found, continuing from current state.")
+        self.saver.reset_best()
 
         # Freeze first N layers, enable LoRA
         self.model.freeze_backbone_layers(self.config.frozen_layers)
@@ -333,6 +335,7 @@ class PhaseAwareTrainer:
             self.logger.info("Loaded best Phase 2 checkpoint.")
         except FileNotFoundError:
             self.logger.warning("No Phase 2 checkpoint found.")
+        self.saver.reset_best()
 
         # Freeze time embedding initially
         for p in self.model.time_embedding.parameters():

@@ -166,6 +166,10 @@ class SmartCheckpointSaver:
 
         return saved
 
+    def reset_best(self) -> None:
+        """Reset best_mae so the next phase saves its first checkpoint unconditionally."""
+        self.best_mae = None
+
     def load_best(
         self,
         model: torch.nn.Module,
