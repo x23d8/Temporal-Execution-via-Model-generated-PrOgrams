@@ -1,0 +1,46 @@
+Question,Option A,Option B,Option C,Option D,Answer,Category
+"If a girl was 3 years 0 month old when she joined school and now she is 10 years 2 months old, for how long has she been in school?",7 years 2 months,6 years 2 months,8 years 2 months,6 years 1 month,A,Application
+"If a flight takes off at 2 PM and the duration of the flight is 2 hours, at what time will it land?",6:00 AM,4:00 PM,2:00 AM,4:00 AM,B,Application
+A transportation operates with a constant speed of 658 km/h. How long will it take to travel a distance of 1743 kilometers in minutes?,129,174,159,144,C,Application
+"If a man walks at a speed of 12 km/hr and after every km, he takes a rest for 3 minutes, how many minutes will it take he to cover 7 km?",57,53,43,52,B,Application
+"If a girl takes a leave of 27 days starting from Thursday, 03 August, on which day may the leave end?","Wednesday, 30 August 2023","Tuesday, 29 August 2023","Wednesday, 09 August 2023","Friday, 01 September 2023",A,Application
+"If you add 331 days to the date 06-08-2023, what will be the new date?",5/14/2024,5/15/2024,5/4/2024,5/19/2024,C,Date Computation
+"If you subtract 294 days to the date 03-12-1212, what will be the new date?",05-29-1211,06-05-1211,06-16-1211,05-23-1211,D,Date Computation
+"If you add 7 months and 28 days to the date 04-07-1990, what will be the new date?",12/5/1990,12/15/1990,12/14/1990,12/6/1990,A,Date Computation
+"If you add 8 weeks and 4 days to the date 02-19-1923, what will be the new date?",4/21/1923,4/20/1923,4/23/1923,4/24/1923,B,Date Computation
+"If you add 6 months and 8 days to the date 09-27-1690, what will be the new date?",04-21-1691,04-04-1691,04-14-1691,04-28-1691,B,Date Computation
+What is 12:52 PM − 08:15?,5:48 AM,2:23 AM,4:37 AM,6:55 AM,C,Hour Adjustment (12h)
+What is 04:21 PM + 08:35?,12:56 AM,11:36 PM,10:53 PM,3:05 AM,A,Hour Adjustment (12h)
+What is 07:07 PM − 08:11?,12:12 PM,1:08 PM,10:56 AM,12:00 PM,C,Hour Adjustment (12h)
+What is 03:29 AM + 05:42?,9:11 AM,8:03 AM,8:05 AM,7:06 AM,A,Hour Adjustment (12h)
+What is 01:38 PM + 04:51?,7:45 PM,6:29 PM,5:13 PM,7:30 PM,B,Hour Adjustment (12h)
+What is 14:14 + 18:43?,8:57,12:12,12:07,10:16,A,Hour Adjustment (24h)
+What is 11:54 - 10:18?,1:36,2:47,3:48,22:29,A,Hour Adjustment (24h)
+What is 00:06 - 19:49?,1:00,2:10,2:12,4:17,D,Hour Adjustment (24h)
+What is 06:49 - 00:40?,5:01,4:49,6:09,4:53,C,Hour Adjustment (24h)
+What is 04:48 + 23:14?,4:02,7:20,0:52,1:47,A,Hour Adjustment (24h)
+Which month was 5 months before February?,November,July,September,February,C,Month Shift
+Which month comes 2 months after November?,January,July,June,December,A,Month Shift
+Which month was 5 months before March?,March,November,October,February,C,Month Shift
+Which month comes 3 months after May?,April,January,August,February,C,Month Shift
+Which month comes 1 months after June?,March,July,December,May,B,Month Shift
+Subtract 17 minutes 0 seconds from 3 hours 34 minutes.,197 minutes 0 seconds,206 minutes 9 seconds,203 minutes 6 seconds,194 minutes -3 seconds,A,Time Computation
+Convert 453 minutes into hours.,7.55,13.55,11.55,1.45,A,Time Computation
+Convert 30 minutes into hours.,0.5,8.5,3.5,5.5,A,Time Computation
+Add 6 minutes 58 seconds and 55 minutes 22 seconds.,56 minutes 14 seconds,64 minutes 22 seconds,52 minutes 10 seconds,62 minutes 20 seconds,D,Time Computation
+Subtract 9 minutes 45 seconds from 2 hours 29 minutes.,139 minutes 15 seconds,146 minutes 22 seconds,130 minutes 6 seconds,148 minutes 24 seconds,A,Time Computation
+"If it's 03 AM on April 3, 1775 in US/Pacific, what's the date and time in UTC?","07 PM on April 3, 1775","05 PM on April 3, 1775","08 PM on April 3, 1775","10 AM on April 3, 1775",D,Time Zone Conversion
+"If it's 04 AM on August 3, 1809 in US/Mountain, what's the date and time in Europe/London?","06 PM on August 3, 1809","12 PM on August 3, 1809","10 AM on August 3, 1809","11 AM on August 3, 1809",C,Time Zone Conversion
+"If it's 10 PM on August 19, 1263 in Asia/Shanghai, what's the date and time in Asia/Tokyo?","11 PM on August 19, 1263","03 AM on August 20, 1263","03 AM on August 20, 1263","08 AM on August 20, 1263",A,Time Zone Conversion
+"If it's 07 AM on April 3, 1456 in UTC, what's the date and time in Asia/Tokyo?","04 PM on April 3, 1456","06 PM on April 3, 1456","02 AM on April 4, 1456","12 AM on April 4, 1456",A,Time Zone Conversion
+"If it's 06 AM on June 16, 1929 in US/Eastern, what's the date and time in Europe/Paris?","03 PM on June 16, 1929","10 PM on June 16, 1929","11 PM on June 16, 1929","11 AM on June 16, 1929",D,Time Zone Conversion
+In which week of year 1288 does the date 07-04-1288 occur?,Week 2,Week 26,Week 27,Week 22,C,Week Identification
+In which week of year 1399 does the date 03-31-1399 occur?,Week 2,Week 39,Week 13,Week 28,C,Week Identification
+In which week of year 1599 does the date 08-15-1599 occur?,Week 11,Week 44,Week 32,Week 40,C,Week Identification
+In which week of year 2015 does the date 12-16-2015 occur?,Week 27,Week 51,Week 50,Week 5,B,Week Identification
+In which week of year 1446 does the date 01-21-1446 occur?,Week 4,Week 22,Week 28,Week 34,A,Week Identification
+Which year comes 6 years after 1512?,1515,1518,1538,1531,B,Year Shift
+Which year was 15 years before 1879?,1816,1838,1878,1864,D,Year Shift
+Which year comes 1 years after 1225?,1270,1197,1226,1263,C,Year Shift
+Which year comes 3 years after 1456?,1431,1459,1449,1419,B,Year Shift
+Which year was 16 years before 1828?,1769,1812,1856,1767,B,Year Shift
