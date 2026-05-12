@@ -152,9 +152,72 @@ class QwenChatLM:
         with torch.inference_mode():
             output_ids = self._model.generate(**inputs, **gen_kwargs)
 
-        new_tokens = output_ids[0, inputs["input_ids"].shape[1]:]
+        n_prompt = inputs["input_ids"].shape[1]
+        new_tokens = output_ids[0, n_prompt:]
         text = self._tokenizer.decode(new_tokens, skip_special_tokens=True)
         return text
+
+    def generate_with_usage(
+        self,
+        messages: list[ChatMessage],
+        *,
+        max_new_tokens: int = 64,
+        temperature: float = 0.0,
+        do_sample: bool = False,
+        enable_thinking: bool = False,
+    ) -> tuple[str, dict]:
+        """Same as generate() but also returns token usage.
+
+        Returns:
+            (text, usage) where usage = {
+                "prompt_tokens":     int,
+                "completion_tokens": int,
+                "total_tokens":      int,
+            }
+        """
+        if self._model is None or self._tokenizer is None:
+            self.load()
+        import torch
+        from typing import Any
+
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        chat = [{"role": m.role, "content": m.content} for m in messages]
+        prompt_text = self._tokenizer.apply_chat_template(
+            chat,
+            tokenize=False,
+            add_generation_prompt=True,
+            enable_thinking=enable_thinking,
+        )
+        inputs = self._tokenizer(prompt_text, return_tensors="pt").to(device)
+        n_prompt = inputs["input_ids"].shape[1]
+
+        eos_ids = [self._tokenizer.eos_token_id]
+        im_end_id = self._tokenizer.convert_tokens_to_ids("<|im_end|>")
+        if im_end_id not in (self._tokenizer.unk_token_id, self._tokenizer.eos_token_id):
+            eos_ids.append(im_end_id)
+
+        gen_kwargs: dict[str, Any] = {
+            "max_new_tokens": max_new_tokens,
+            "do_sample": do_sample,
+            "pad_token_id": self._tokenizer.eos_token_id,
+            "eos_token_id": eos_ids,
+        }
+        if do_sample:
+            gen_kwargs["temperature"] = temperature
+
+        with torch.inference_mode():
+            output_ids = self._model.generate(**inputs, **gen_kwargs)
+
+        new_tokens = output_ids[0, n_prompt:]
+        n_completion = len(new_tokens)
+        text = self._tokenizer.decode(new_tokens, skip_special_tokens=True)
+
+        usage = {
+            "prompt_tokens":     n_prompt,
+            "completion_tokens": n_completion,
+            "total_tokens":      n_prompt + n_completion,
+        }
+        return text, usage
 
     def generate_batch(
         self,

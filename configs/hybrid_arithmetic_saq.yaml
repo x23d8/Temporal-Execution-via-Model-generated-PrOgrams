@@ -1,0 +1,28 @@
+experiment_name: hybrid_arithmetic_saq
+method: hybrid
+dataset: arithmetic_saq
+dataset_path: F:/arithmetic/arithmetic_saq_prepared.jsonl
+seed: 42
+model_name: Qwen/Qwen3-4B
+dtype: bfloat16
+enable_thinking: false
+k_shot: 0
+max_samples: 50
+output_dir: outputs
+progress_every: 50
+verbose: true
+verbose_first_n: 5
+verbose_every: 10
+running_score_every: 25
+# hybrid routing: pot = deterministic arithmetic, not = knowledge/narrative
+routing:
+  Hour Adjustment (24h): pot
+  Hour Adjustment (12h): pot
+  Year Shift:            pot
+  Month Shift:           pot
+  Time Computation:      pot
+  Week Identification:   pot
+  Date Computation:      not
+  Time Zone Conversion:  not
+  Application:           not
+default_route: not

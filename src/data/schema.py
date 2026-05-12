@@ -28,3 +28,19 @@ class Sample(TypedDict, total=False):
     question: str
     gold: str
     meta: dict
+
+
+class McqSample(TypedDict, total=False):
+    """One arithmetic MCQ item with four labelled options.
+
+    gold is always a single uppercase letter: 'A' | 'B' | 'C' | 'D'.
+    """
+    sample_id: str
+    category: str   # e.g. 'Hour Adjustment (24h)', 'Year Shift', …
+    dataset: str
+    question: str
+    option_a: str
+    option_b: str
+    option_c: str
+    option_d: str
+    gold: str       # 'A' | 'B' | 'C' | 'D'

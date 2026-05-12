@@ -27,6 +27,11 @@ def compute_metrics(
         Dict with keys: mae, exact_match, within_1yr, within_5yr,
         consistency_rate, median_ae, p90_ae.
     """
+    if len(predictions) == 0:
+        return {"mae": 0.0, "exact_match": 0.0, "within_1yr": 0.0,
+                "within_5yr": 0.0, "consistency_rate": 0.0,
+                "median_ae": 0.0, "p90_ae": 0.0}
+
     preds = np.array(predictions, dtype=np.float32)
     truths = np.array(ground_truths, dtype=np.float32)
     abs_errors = np.abs(preds - truths)
