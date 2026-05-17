@@ -1,0 +1,1150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Temporal Arithmetic Evaluator</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:           #09090b;
+  --surface:      #111117;
+  --card:         #18181b;
+  --card2:        #1f1f23;
+  --border:       #27272a;
+  --border2:      #3f3f46;
+  --accent:       #6366f1;
+  --accent-bg:    rgba(99,102,241,0.08);
+  --accent-bdr:   rgba(99,102,241,0.25);
+  --green:        #22c55e;
+  --green-bg:     rgba(34,197,94,0.08);
+  --green-bdr:    rgba(34,197,94,0.25);
+  --red:          #ef4444;
+  --red-bg:       rgba(239,68,68,0.08);
+  --red-bdr:      rgba(239,68,68,0.25);
+  --yellow:       #eab308;
+  --yellow-bg:    rgba(234,179,8,0.08);
+  --yellow-bdr:   rgba(234,179,8,0.25);
+  --text:         #fafafa;
+  --text2:        #a1a1aa;
+  --muted:        #71717a;
+  --code-bg:      #0f0f11;
+  --r:            6px;
+  --r-lg:         10px;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Nav ── */
+nav {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  text-decoration: none;
+  color: var(--text);
+}
+.nav-icon {
+  width: 26px; height: 26px;
+  background: var(--accent);
+  border-radius: var(--r);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.nav-title { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
+.nav-sep   { width: 1px; height: 18px; background: var(--border); }
+.nav-chip  {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 8px;
+  background: var(--accent-bg);
+  border: 1px solid var(--accent-bdr);
+  border-radius: 20px;
+  font-size: 11px; font-weight: 500; color: var(--accent);
+}
+.dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.nav-spacer { flex: 1; }
+.nav-ver { font-size: 11px; color: var(--muted); }
+
+/* ── Layout ── */
+.layout { display: flex; flex: 1; max-width: 1400px; width: 100%; margin: 0 auto; }
+
+/* ── Sidebar ── */
+aside {
+  width: 272px; min-width: 272px;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+  height: calc(100vh - 52px);
+  position: sticky; top: 52px;
+  overflow-y: auto;
+  padding: 14px 0;
+}
+.aside-hd {
+  padding: 0 14px 10px;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 6px;
+}
+.aside-group { padding: 6px 0 2px; }
+.aside-grp-label {
+  padding: 4px 14px;
+  font-size: 10px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--muted);
+}
+.example-item {
+  padding: 7px 10px;
+  margin: 0 6px 1px;
+  border-radius: var(--r);
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 0.12s, border-color 0.12s;
+}
+.example-item:hover { background: rgba(255,255,255,0.04); border-color: var(--border); }
+.example-item.active { background: var(--accent-bg); border-color: var(--accent-bdr); }
+.ex-q {
+  font-size: 12px; color: var(--text2); line-height: 1.4;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.example-item.active .ex-q { color: var(--text); }
+.ex-meta { display: flex; gap: 6px; margin-top: 3px; align-items: center; }
+.ex-cat  { font-size: 10px; color: var(--muted); }
+.ex-ans  { font-size: 10px; color: var(--green); font-weight: 600; }
+
+/* ── Main ── */
+main {
+  flex: 1; padding: 32px 40px;
+  overflow-y: auto; max-width: 880px;
+}
+
+/* ── Page header ── */
+.page-hd {
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 24px;
+}
+.page-title {
+  font-size: 21px; font-weight: 700;
+  color: var(--text); letter-spacing: -0.02em;
+  margin-bottom: 6px;
+}
+.page-desc { font-size: 13px; color: var(--muted); line-height: 1.65; max-width: 560px; }
+.page-desc strong { color: var(--text2); font-weight: 500; }
+
+.method-tags { display: flex; gap: 6px; margin-top: 14px; flex-wrap: wrap; }
+.method-tag {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 10px; border-radius: 4px;
+  font-size: 11px; font-weight: 500; border: 1px solid;
+}
+.tag-exec { color: var(--green); border-color: var(--green-bdr); background: var(--green-bg); }
+.tag-pot  { color: var(--accent); border-color: var(--accent-bdr); background: var(--accent-bg); }
+.tag-not  { color: #a78bfa; border-color: rgba(167,139,250,.25); background: rgba(167,139,250,.08); }
+
+/* ── Card ── */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 20px;
+  margin-bottom: 14px;
+}
+.card-title {
+  font-size: 11px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.07em;
+  color: var(--muted); margin-bottom: 12px;
+}
+
+/* ── Textarea ── */
+textarea {
+  width: 100%;
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  color: var(--text);
+  font-size: 13.5px; line-height: 1.6;
+  padding: 11px 13px;
+  resize: vertical; min-height: 74px;
+  font-family: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  outline: none;
+}
+textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-bg);
+}
+
+/* ── Text input ── */
+input[type="text"] {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  color: var(--text);
+  font-size: 13px; padding: 7px 11px;
+  font-family: inherit; outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  width: 100%;
+}
+input[type="text"]:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-bg);
+}
+
+/* ── MCQ toggle ── */
+.mcq-toggle {
+  cursor: pointer; user-select: none;
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 13px;
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  margin-top: 12px;
+  transition: border-color 0.15s;
+}
+.mcq-toggle:hover { border-color: var(--border2); }
+.mcq-chevron { font-size: 10px; color: var(--muted); transition: transform 0.15s; }
+.mcq-toggle.open .mcq-chevron { transform: rotate(90deg); }
+.mcq-lbl { font-size: 12px; font-weight: 500; color: var(--text2); flex: 1; }
+.mcq-opt-tag {
+  font-size: 10px; padding: 1px 6px;
+  background: var(--card2); border: 1px solid var(--border);
+  border-radius: 3px; color: var(--muted);
+}
+
+.mcq-body { display: none; margin-top: 10px; }
+.mcq-body.open { display: block; }
+.opts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.opt-row { display: flex; align-items: center; gap: 8px; }
+.opt-badge {
+  width: 24px; height: 24px;
+  border-radius: 4px;
+  background: var(--accent-bg); border: 1px solid var(--accent-bdr);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; color: var(--accent);
+  flex-shrink: 0;
+}
+
+/* ── Input footer ── */
+.input-footer {
+  display: flex; gap: 10px;
+  margin-top: 14px; align-items: flex-end;
+}
+.field { display: flex; flex-direction: column; gap: 5px; }
+.field-lbl { font-size: 11px; font-weight: 500; color: var(--muted); }
+.spacer { flex: 1; }
+.kbd-row { display: flex; align-items: center; gap: 5px; align-self: flex-end; }
+.kbd {
+  display: inline-flex; align-items: center;
+  padding: 1px 5px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 3px;
+  font-size: 10px; color: var(--muted); font-family: monospace;
+}
+.kbd-sep { font-size: 11px; color: var(--muted); }
+
+/* ── Button ── */
+.btn {
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: var(--r);
+  color: #fff;
+  font-size: 13px; font-weight: 600;
+  padding: 0 18px; height: 36px;
+  cursor: pointer; font-family: inherit;
+  transition: background 0.15s, transform 0.1s;
+  display: flex; align-items: center; gap: 7px;
+  white-space: nowrap; flex-shrink: 0;
+}
+.btn:hover { background: #5254cc; border-color: #5254cc; }
+.btn:active { transform: scale(0.98); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── Results ── */
+#results { display: none; }
+#results.visible { display: block; }
+
+/* ── Pipeline ── */
+.pipeline {
+  display: flex; align-items: center;
+  padding: 14px 16px;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  overflow-x: auto; margin-bottom: 14px;
+  gap: 0;
+}
+.pipe-step {
+  display: flex; flex-direction: column;
+  align-items: center; gap: 4px;
+  flex-shrink: 0; min-width: 108px;
+}
+.pipe-box {
+  padding: 5px 14px;
+  border-radius: var(--r);
+  border: 1px solid var(--border);
+  background: var(--card2);
+  font-size: 11px; font-weight: 600; color: var(--muted);
+  text-align: center; transition: all 0.2s; white-space: nowrap;
+}
+.pipe-box.done    { border-color: var(--accent-bdr); color: var(--accent); background: var(--accent-bg); }
+.pipe-box.success { border-color: var(--green-bdr);  color: var(--green);  background: var(--green-bg); }
+.pipe-label { font-size: 10px; color: var(--muted); }
+.pipe-arrow { font-size: 13px; color: var(--border2); margin: 0 8px; padding-bottom: 18px; flex-shrink: 0; }
+.pipe-arrow.on { color: var(--accent); }
+
+/* ── Result grid ── */
+.result-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 12px; margin-bottom: 14px;
+}
+.result-cell {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--r-lg); padding: 14px 16px;
+}
+.result-cell.full { grid-column: 1 / -1; }
+.result-lbl {
+  font-size: 10px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.07em;
+  color: var(--muted); margin-bottom: 8px;
+}
+
+/* ── Category badge ── */
+.cat-badge {
+  display: inline-flex; align-items: center;
+  padding: 3px 10px; border-radius: var(--r);
+  font-size: 12px; font-weight: 500;
+  background: var(--accent-bg); border: 1px solid var(--accent-bdr); color: var(--accent);
+}
+.cat-badge.unknown {
+  background: var(--yellow-bg); border-color: var(--yellow-bdr); color: var(--yellow);
+}
+
+/* ── Params block ── */
+.params-block {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 11px 13px;
+  font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  font-size: 11.5px; line-height: 1.65;
+  overflow-x: auto; white-space: pre;
+  color: #a5b4fc;
+}
+
+/* ── Answer ── */
+.answer-display {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--r-lg); padding: 18px 20px;
+  display: flex; align-items: center;
+  justify-content: space-between; gap: 16px;
+  margin-bottom: 14px;
+}
+.answer-lbl {
+  font-size: 10px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.07em;
+  color: var(--muted); margin-bottom: 5px;
+}
+.answer-val {
+  font-size: 26px; font-weight: 700;
+  color: var(--text);
+  font-family: 'JetBrains Mono', 'Consolas', monospace;
+  letter-spacing: -0.02em;
+}
+.ans-src {
+  font-size: 11px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.05em;
+  padding: 4px 10px; border-radius: 4px;
+  white-space: nowrap; flex-shrink: 0;
+}
+.src-exec   { background: var(--green-bg);  border: 1px solid var(--green-bdr);  color: var(--green); }
+.src-llm    { background: var(--yellow-bg); border: 1px solid var(--yellow-bdr); color: var(--yellow); }
+
+/* ── Verdict ── */
+.verdict {
+  display: flex; align-items: center; gap: 10px;
+  padding: 11px 16px; border-radius: var(--r);
+  font-size: 13px; font-weight: 600; margin-bottom: 14px;
+}
+.verdict.correct { background: var(--green-bg);  border: 1px solid var(--green-bdr);  color: var(--green); }
+.verdict.wrong   { background: var(--red-bg);    border: 1px solid var(--red-bdr);    color: var(--red); }
+.verdict-icon { font-size: 15px; }
+
+/* ── MCQ result ── */
+.opts-result-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.opt-res-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 12px; border-radius: var(--r);
+  border: 1px solid var(--border); background: var(--code-bg);
+  font-size: 12px; transition: all 0.15s;
+}
+.opt-res-row.predicted   { border-color: var(--accent-bdr); background: var(--accent-bg); }
+.opt-res-row.gold-correct{ border-color: var(--green-bdr);  background: var(--green-bg); }
+.opt-res-row.wrong-pred  { border-color: var(--red-bdr);    background: var(--red-bg); }
+
+.opt-res-letter {
+  width: 22px; height: 22px; border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; flex-shrink: 0;
+}
+.opt-res-letter.predicted   { background: var(--accent); color: #fff; }
+.opt-res-letter.gold-correct{ background: var(--green);  color: #fff; }
+.opt-res-letter.wrong-pred  { background: var(--red);    color: #fff; }
+.opt-res-letter.default     { background: var(--border); color: var(--muted); }
+
+.opt-res-text { color: var(--text2); flex: 1; font-size: 12px; }
+.opt-res-row.gold-correct .opt-res-text,
+.opt-res-row.predicted    .opt-res-text { color: var(--text); }
+
+.opt-res-tag {
+  font-size: 10px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.04em;
+  padding: 2px 6px; border-radius: 3px; flex-shrink: 0;
+}
+.t-pred  { background: var(--accent-bg); color: var(--accent); }
+.t-gold  { background: var(--green-bg);  color: var(--green); }
+.t-wrong { background: var(--red-bg);    color: var(--red); }
+
+/* ── Narrative ── */
+.narrative-block {
+  background: var(--code-bg); border: 1px solid var(--border);
+  border-radius: var(--r); padding: 13px 15px;
+  font-size: 12px; line-height: 1.7; color: var(--text2);
+  white-space: pre-wrap;
+  font-family: 'JetBrains Mono', 'Consolas', monospace;
+}
+.narrative-section { color: var(--accent); font-weight: 700; }
+
+/* ── Error ── */
+.error-box {
+  padding: 11px 13px;
+  background: var(--red-bg); border: 1px solid var(--red-bdr);
+  border-radius: var(--r); font-size: 13px; color: var(--red);
+}
+
+/* ── Animations ── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.anim-in { animation: fadeUp 0.22s ease both; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner {
+  width: 13px; height: 13px;
+  border: 2px solid rgba(255,255,255,0.2);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+/* ── Responsive ── */
+@media (max-width: 860px) {
+  .layout { flex-direction: column; }
+  aside { width: 100%; min-width: unset; height: auto; position: static; border-right: none; border-bottom: 1px solid var(--border); }
+  main { padding: 20px 16px; }
+  .result-grid { grid-template-columns: 1fr; }
+  .opts-grid { grid-template-columns: 1fr; }
+  .opts-result-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <a class="nav-brand" href="#">
+    <div class="nav-icon">⏱</div>
+    <span class="nav-title">Temporal Eval</span>
+  </a>
+  <div class="nav-sep"></div>
+  <span class="nav-chip"><span class="dot"></span>PoT · NoT · Executor</span>
+  <div class="nav-spacer"></div>
+  <span class="nav-ver">v1.0</span>
+</nav>
+
+<div class="layout">
+
+  <aside>
+    <div class="aside-hd">Examples</div>
+
+    <div class="aside-group">
+      <div class="aside-grp-label">Hour Adjustment</div>
+      <div class="example-item" onclick="loadExample(0)">
+        <div class="ex-q">What is 14:35 + 03:45?</div>
+        <div class="ex-meta"><span class="ex-cat">24h</span><span class="ex-ans">→ 18:20</span></div>
+      </div>
+      <div class="example-item" onclick="loadExample(1)">
+        <div class="ex-q">What is 10:30 AM + 02:45?</div>
+        <div class="ex-meta"><span class="ex-cat">12h</span><span class="ex-ans">→ 1:15 PM</span></div>
+      </div>
+      <div class="example-item" onclick="loadExample(2)">
+        <div class="ex-q">What is 11:50 PM − 03:20?</div>
+        <div class="ex-meta"><span class="ex-cat">12h minus</span><span class="ex-ans">→ 8:30 PM</span></div>
+      </div>
+    </div>
+
+    <div class="aside-group">
+      <div class="aside-grp-label">Year / Month Shift</div>
+      <div class="example-item" onclick="loadExample(3)">
+        <div class="ex-q">Which year comes 15 years after 2008?</div>
+        <div class="ex-meta"><span class="ex-cat">Year Shift</span><span class="ex-ans">→ 2023</span></div>
+      </div>
+      <div class="example-item" onclick="loadExample(4)">
+        <div class="ex-q">Which month comes 5 months after July?</div>
+        <div class="ex-meta"><span class="ex-cat">Month Shift</span><span class="ex-ans">→ December</span></div>
+      </div>
+    </div>
+
+    <div class="aside-group">
+      <div class="aside-grp-label">Week Identification</div>
+      <div class="example-item" onclick="loadExample(5)">
+        <div class="ex-q">In which week of year does 03-15-2024 occur?</div>
+        <div class="ex-meta"><span class="ex-cat">ISO Week</span><span class="ex-ans">→ Week 11</span></div>
+      </div>
+    </div>
+
+    <div class="aside-group">
+      <div class="aside-grp-label">Time Computation</div>
+      <div class="example-item" onclick="loadExample(6)">
+        <div class="ex-q">Convert 3 days into minutes</div>
+        <div class="ex-meta"><span class="ex-cat">Unit convert</span><span class="ex-ans">→ 4320</span></div>
+      </div>
+      <div class="example-item" onclick="loadExample(7)">
+        <div class="ex-q">Add 45 min 30 sec and 20 min 45 sec</div>
+        <div class="ex-meta"><span class="ex-cat">Add min+sec</span><span class="ex-ans">→ 66:15</span></div>
+      </div>
+    </div>
+
+    <div class="aside-group">
+      <div class="aside-grp-label">Date Computation</div>
+      <div class="example-item" onclick="loadExample(8)">
+        <div class="ex-q">Add 30 days to the date 01-15-2024</div>
+        <div class="ex-meta"><span class="ex-cat">Add days</span><span class="ex-ans">→ 02-14-2024</span></div>
+      </div>
+      <div class="example-item" onclick="loadExample(9)">
+        <div class="ex-q">2 years and 3 months after March 2022?</div>
+        <div class="ex-meta"><span class="ex-cat">Years+months</span><span class="ex-ans">→ June 2024</span></div>
+      </div>
+      <div class="example-item" onclick="loadExample(10)">
+        <div class="ex-q">Add 2 months and 10 days to 03-01-2024</div>
+        <div class="ex-meta"><span class="ex-cat">Months+days</span><span class="ex-ans">→ 05-11-2024</span></div>
+      </div>
+    </div>
+
+    <div class="aside-group">
+      <div class="aside-grp-label">Application</div>
+      <div class="example-item" onclick="loadExample(11)">
+        <div class="ex-q">Vehicle at 60 km/h covers 120 km. Minutes?</div>
+        <div class="ex-meta"><span class="ex-cat">Speed-dist</span><span class="ex-ans">→ 120</span></div>
+      </div>
+    </div>
+
+    <div class="aside-group">
+      <div class="aside-grp-label">Time Zone Conversion</div>
+      <div class="example-item" onclick="loadExample(12)">
+        <div class="ex-q">3 PM Jan 15, 2024 US/Eastern → Asia/Tokyo?</div>
+        <div class="ex-meta"><span class="ex-cat">TZ convert</span><span class="ex-ans">→ 5 AM Jan 16</span></div>
+      </div>
+    </div>
+
+    <div class="aside-group">
+      <div class="aside-grp-label">Multiple Choice</div>
+      <div class="example-item" onclick="loadExample(13)">
+        <div class="ex-q">Train at 22:45 + 2d 9h 30m… options A–D</div>
+        <div class="ex-meta"><span class="ex-cat">MCQ</span><span class="ex-ans">→ A: Sun 08:15</span></div>
+      </div>
+    </div>
+  </aside>
+
+  <main>
+    <div class="page-hd">
+      <div class="page-title">Temporal Arithmetic Evaluator</div>
+      <div class="page-desc">
+        Evaluate temporal reasoning using <strong>Program-of-Thought (PoT)</strong> —
+        a deterministic executor that extracts structured parameters and computes answers precisely, without hallucination.
+      </div>
+      <div class="method-tags">
+        <span class="method-tag tag-exec"><span class="dot"></span>Deterministic Executor</span>
+        <span class="method-tag tag-pot"><span class="dot"></span>Program-of-Thought</span>
+        <span class="method-tag tag-not"><span class="dot"></span>Narrative-of-Thought</span>
+      </div>
+    </div>
+
+    <!-- Input -->
+    <div class="card">
+      <div class="card-title">Question</div>
+      <textarea id="question-input" rows="3"
+        placeholder="Enter a temporal arithmetic question…&#10;e.g. What is 14:35 + 03:45?"></textarea>
+
+      <div class="mcq-toggle" id="mcq-toggle" onclick="toggleMCQ()">
+        <span class="mcq-chevron">▶</span>
+        <span class="mcq-lbl">Multiple Choice Options</span>
+        <span class="mcq-opt-tag">optional</span>
+      </div>
+
+      <div class="mcq-body" id="options-card">
+        <div class="opts-grid">
+          <div class="opt-row"><div class="opt-badge">A</div><input type="text" id="opt-a" placeholder="Option A…"/></div>
+          <div class="opt-row"><div class="opt-badge">B</div><input type="text" id="opt-b" placeholder="Option B…"/></div>
+          <div class="opt-row"><div class="opt-badge">C</div><input type="text" id="opt-c" placeholder="Option C…"/></div>
+          <div class="opt-row"><div class="opt-badge">D</div><input type="text" id="opt-d" placeholder="Option D…"/></div>
+        </div>
+      </div>
+
+      <div class="input-footer">
+        <div class="field" style="width:170px;">
+          <div class="field-lbl">Gold Answer</div>
+          <input type="text" id="gold-input" placeholder="e.g. 18:20 or A"/>
+        </div>
+        <div class="spacer"></div>
+        <div class="kbd-row">
+          <span class="kbd">Ctrl</span>
+          <span class="kbd-sep">+</span>
+          <span class="kbd">↵</span>
+          <button class="btn" onclick="runEvaluation()" id="run-btn">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            Evaluate
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Results -->
+    <div id="results">
+      <div id="verdict-section" style="display:none;"></div>
+
+      <div class="pipeline" id="pipeline-steps"></div>
+
+      <div class="result-grid" id="result-grid"></div>
+
+      <div id="answer-card" class="answer-display" style="display:none;">
+        <div>
+          <div class="answer-lbl">Computed Answer</div>
+          <div class="answer-val" id="answer-value">—</div>
+        </div>
+        <div id="answer-source-badge"></div>
+      </div>
+
+      <div class="card" id="mcq-result-card" style="display:none;">
+        <div class="card-title">Option Matching</div>
+        <div class="opts-result-grid" id="options-result"></div>
+      </div>
+
+      <div class="card" id="narrative-card" style="display:none;">
+        <div class="card-title">Narrative-of-Thought</div>
+        <div class="narrative-block" id="narrative-content"></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+const EXAMPLES = [
+  { question: "What is 14:35 + 03:45?", gold: "18:20", optA:"", optB:"", optC:"", optD:"" },
+  { question: "What is 10:30 AM + 02:45?", gold: "1:15 PM", optA:"", optB:"", optC:"", optD:"" },
+  { question: "What is 11:50 PM - 03:20?", gold: "8:30 PM", optA:"", optB:"", optC:"", optD:"" },
+  { question: "Which year comes 15 years after 2008?", gold: "2023", optA:"", optB:"", optC:"", optD:"" },
+  { question: "Which month comes 5 months after July?", gold: "December", optA:"", optB:"", optC:"", optD:"" },
+  { question: "In which week of year does 03-15-2024 occur?", gold: "Week 11", optA:"", optB:"", optC:"", optD:"" },
+  { question: "Convert 3 days into minutes", gold: "4320", optA:"", optB:"", optC:"", optD:"" },
+  { question: "Add 45 minutes 30 seconds and 20 minutes 45 seconds", gold: "66 minutes 15 seconds", optA:"", optB:"", optC:"", optD:"" },
+  { question: "If you add 30 days to the date 01-15-2024", gold: "02-14-2024", optA:"", optB:"", optC:"", optD:"" },
+  { question: "What will be the time 2 years and 3 months after March 2022?", gold: "June 2024", optA:"", optB:"", optC:"", optD:"" },
+  { question: "If you add 2 months and 10 days to the date 03-01-2024", gold: "05-11-2024", optA:"", optB:"", optC:"", optD:"" },
+  { question: "A transportation vehicle travels at a speed of 60 km/h. If the distance of the trip is 120 kilometers, how many minutes does the trip take?", gold: "120", optA:"", optB:"", optC:"", optD:"" },
+  { question: "If it's 3 PM on January 15, 2024 in US/Eastern, what's the time in Asia/Tokyo?", gold: "5 AM on January 16, 2024", optA:"", optB:"", optC:"", optD:"" },
+  { question: "A train departs at 22:45 on Friday. The journey takes 2 days, 9 hours and 30 minutes. What day and time does it arrive?",
+    gold: "A", optA: "Sunday 08:15", optB: "Saturday 23:15", optC: "Sunday 07:45", optD: "Sunday 09:15" },
+];
+
+const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const MONTH_RE = MONTHS.join("|");
+
+const TZ_OFFSET = {
+  "UTC":0,"GMT":0,"US/Eastern":-5,"EST":-5,"EDT":-4,"US/Central":-6,"CST":-6,"CDT":-5,
+  "US/Mountain":-7,"MST":-7,"MDT":-6,"US/Pacific":-8,"PST":-8,"PDT":-7,"US/Hawaii":-10,"HST":-10,
+  "Europe/London":0,"BST":1,"Europe/Paris":1,"CET":1,"CEST":2,"Europe/Athens":2,"EET":2,"EEST":3,
+  "Asia/Shanghai":8,"Asia/Singapore":8,"SGT":8,"Asia/Tokyo":9,"JST":9,"Asia/Kolkata":5.5,"IST":5.5,
+  "Australia/Sydney":10,"AEST":10,"Asia/Riyadh":3,
+};
+
+function loadExample(idx) {
+  const ex = EXAMPLES[idx];
+  document.getElementById('question-input').value = ex.question;
+  document.getElementById('gold-input').value = ex.gold;
+  document.getElementById('opt-a').value = ex.optA;
+  document.getElementById('opt-b').value = ex.optB;
+  document.getElementById('opt-c').value = ex.optC;
+  document.getElementById('opt-d').value = ex.optD;
+
+  const hasMCQ = ex.optA || ex.optB || ex.optC || ex.optD;
+  const optCard = document.getElementById('options-card');
+  const toggle  = document.getElementById('mcq-toggle');
+  if (hasMCQ) {
+    optCard.classList.add('open');
+    toggle.classList.add('open');
+  }
+
+  document.querySelectorAll('.example-item').forEach((el, i) => el.classList.toggle('active', i === idx));
+
+  const res = document.getElementById('results');
+  res.classList.remove('visible');
+  res.style.display = 'none';
+}
+
+function toggleMCQ() {
+  const body   = document.getElementById('options-card');
+  const toggle = document.getElementById('mcq-toggle');
+  body.classList.toggle('open');
+  toggle.classList.toggle('open');
+}
+
+function detectCategory(q) {
+  const ql = q.toLowerCase();
+  if (/\d{1,2}:\d{2}\s*(am|pm)/i.test(q)) return "Hour Adjustment (12h)";
+  if (/what is\s+\d{1,2}:\d{2}\s*[+\-−]/.test(ql)) return "Hour Adjustment (24h)";
+  if (/which week of year/.test(ql)) return "Week Identification";
+  if (/\d+\s+years?\s+and\s+\d+\s+months?\s+after/.test(ql)) return "Date Computation";
+  if (/\d+\s+years?\s+(after|before)\s+\d{3,4}/.test(ql)) return "Year Shift";
+  if (new RegExp(`\\d+\\s+months?\\s+(after|before)\\s+(${MONTH_RE})`, 'i').test(q)) return "Month Shift";
+  if (/(convert\s+\d+\s+(days?|minutes?|seconds?)\s+into|add\s+\d+\s+minutes?|subtract\s+\d+\s+minutes?\s+\d+\s+seconds?\s+from)/.test(ql)) return "Time Computation";
+  if (/(add|subtract)\s+\d+\s+(days?|months?|weeks?)(\s+and\s+\d+\s+\w+)?\s+(to|from)\s+the\s+date/.test(ql)) return "Date Computation";
+  if (/it'?s\s+\d{1,2}\s*(am|pm)/.test(ql) && /\bin\s+[a-z_]+(?:\/[a-z_]+)?/.test(ql)) return "Time Zone Conversion";
+  if (/(km\/h|km\/hr|kilometers?|distance|speed)/.test(ql)) return "Application";
+  return null;
+}
+
+function parseHour24h(q) {
+  const m = q.match(/(\d{1,2}:\d{2})\s*([+\-−])\s*(\d{1,2}:\d{2})/);
+  if (!m) return null;
+  return { task:"hour_24h", time1:m[1], op:(m[2]==='+' ? '+' : '-'), time2:m[3] };
+}
+function parseHour12h(q) {
+  const m = q.match(/(\d{1,2}:\d{2})\s*(AM|PM)\s*([+\-−])\s*(\d{1,2}:\d{2})/i);
+  if (!m) return null;
+  return { task:"hour_12h", time1:m[1], period:m[2].toUpperCase(), op:(m[3]==='+' ? '+' : '-'), time2:m[4] };
+}
+function parseYearShift(q) {
+  const m = q.match(/(\d+)\s+years?\s+(after|before)\s+(\d{3,4})/i);
+  if (!m) return null;
+  return { task:"year_shift", n:parseInt(m[1]), direction:m[2].toLowerCase(), year:parseInt(m[3]) };
+}
+function parseMonthShift(q) {
+  const m = q.match(new RegExp(`(\\d+)\\s+months?\\s+(after|before)\\s+(${MONTH_RE})`, 'i'));
+  if (!m) return null;
+  return { task:"month_shift", n:parseInt(m[1]), direction:m[2].toLowerCase(), month:m[3] };
+}
+function parseWeekId(q) {
+  const m = q.match(/(\d{2})-(\d{2})-(\d{4})/);
+  if (!m) return null;
+  return { task:"week_id", month:parseInt(m[1]), day:parseInt(m[2]), year:parseInt(m[3]) };
+}
+function parseTimeComputation(q) {
+  const ql = q.toLowerCase(); let m;
+  m = ql.match(/convert\s+(\d+)\s+days?\s+into\s+minutes/);
+  if (m) return { task:"convert", value:parseInt(m[1]), from:"days", to:"minutes" };
+  m = ql.match(/convert\s+(\d+)\s+minutes?\s+into\s+hours/);
+  if (m) return { task:"convert", value:parseInt(m[1]), from:"minutes", to:"hours" };
+  m = ql.match(/convert\s+(\d+)\s+days?\s+into\s+hours/);
+  if (m) return { task:"convert", value:parseInt(m[1]), from:"days", to:"hours" };
+  m = ql.match(/convert\s+(\d+)\s+seconds?\s+into\s+hours/);
+  if (m) return { task:"convert", value:parseInt(m[1]), from:"seconds", to:"hours" };
+  m = ql.match(/add\s+(\d+)\s+minutes?\s+(\d+)\s+seconds?\s+and\s+(\d+)\s+minutes?\s+(\d+)\s+seconds?/);
+  if (m) return { task:"add_min_sec", m1:parseInt(m[1]), s1:parseInt(m[2]), m2:parseInt(m[3]), s2:parseInt(m[4]) };
+  m = ql.match(/subtract\s+(\d+)\s+minutes?\s+(\d+)\s+seconds?\s+from\s+(\d+)\s+hours?\s+(\d+)\s+minutes?/);
+  if (m) return { task:"sub_from_hm", sub_m:parseInt(m[1]), sub_s:parseInt(m[2]), base_h:parseInt(m[3]), base_m:parseInt(m[4]) };
+  return null;
+}
+function parseDateComputation(q) {
+  const ql = q.toLowerCase(); let m;
+  m = q.match(new RegExp(`(\\d+)\\s+years?\\s+and\\s+(\\d+)\\s+months?\\s+after\\s+(${MONTH_RE})\\s+(\\d{3,4})`, 'i'));
+  if (m) return { task:"date_years_months", delta_years:parseInt(m[1]), delta_months:parseInt(m[2]), base_month:m[3], base_year:parseInt(m[4]), op:"add" };
+  m = ql.match(/(add|subtract)\s+(\d+)\s+days?\s+to\s+the\s+date\s+(\d{2}-\d{2}-\d{4})/);
+  if (m) return { task:"date_days", op:m[1], days:parseInt(m[2]), base:m[3] };
+  m = ql.match(/(add|subtract)\s+(\d+)\s+months?\s+and\s+(\d+)\s+days?\s+to\s+the\s+date\s+(\d{2}-\d{2}-\d{4})/);
+  if (m) return { task:"date_months_days", op:m[1], months:parseInt(m[2]), days:parseInt(m[3]), base:m[4] };
+  m = ql.match(/(add|subtract)\s+(\d+)\s+weeks?\s+and\s+(\d+)\s+days?\s+to\s+the\s+date\s+(\d{2}-\d{2}-\d{4})/);
+  if (m) return { task:"date_weeks_days", op:m[1], weeks:parseInt(m[2]), days:parseInt(m[3]), base:m[4] };
+  return null;
+}
+function parseApplication(q) {
+  const ql = q.toLowerCase(); let m;
+  m = ql.match(/speed\s+of\s+([\d.]+)\s*km\/h.*?distance\s+of\s+([\d.]+)\s*kilo?m/s);
+  if (m) return { task:"speed_dist_minutes", speed:parseFloat(m[1]), dist:parseFloat(m[2]) };
+  m = ql.match(/speed\s+of\s+([\d.]+)\s*km\/hr.*?rest\s+for\s+(\d+)\s+minutes.*?cover\s+(\d+)\s*km/s);
+  if (m) return { task:"rest_walk", speed:parseFloat(m[1]), rest:parseInt(m[2]), dist:parseInt(m[3]) };
+  return null;
+}
+function parseTzConversion(q) {
+  const re = new RegExp(
+    `it'?s\\s+(\\d{1,2})\\s*(AM|PM)\\s+on\\s+(${MONTH_RE})\\s+(\\d{1,2}),\\s*(\\d{3,4})` +
+    `\\s+in\\s+([A-Za-z/_]+),.*?in\\s+([A-Za-z/_]+)`, 'i'
+  );
+  const m = q.match(re);
+  if (!m) return null;
+  return { task:"tz_conversion", hour:parseInt(m[1]), period:m[2].toUpperCase(), month:m[3],
+    day:parseInt(m[4]), year:parseInt(m[5]), src_tz:m[6], tgt_tz:m[7].replace(/[?.,]+$/, '') };
+}
+
+const PARSERS = {
+  "Hour Adjustment (24h)": parseHour24h,
+  "Hour Adjustment (12h)": parseHour12h,
+  "Year Shift":            parseYearShift,
+  "Month Shift":           parseMonthShift,
+  "Week Identification":   parseWeekId,
+  "Time Computation":      parseTimeComputation,
+  "Date Computation":      parseDateComputation,
+  "Application":           parseApplication,
+  "Time Zone Conversion":  parseTzConversion,
+};
+
+function parseParams(q, cat) { const fn = PARSERS[cat]; return fn ? fn(q) : null; }
+
+function isoWeek(year, month, day) {
+  const d = new Date(year, month - 1, day);
+  const jan4 = new Date(year, 0, 4);
+  const startW1 = new Date(jan4);
+  startW1.setDate(jan4.getDate() - ((jan4.getDay() + 6) % 7));
+  const week = Math.floor((d - startW1) / (7 * 86400000)) + 1;
+  if (week < 1) return isoWeek(year - 1, 12, 31);
+  return week;
+}
+
+function execute(p) {
+  const t = p.task;
+  if (t === "hour_24h") {
+    const [h1,m1] = p.time1.split(":").map(Number), [h2,m2] = p.time2.split(":").map(Number);
+    const res = ((p.op==='+' ? h1*60+m1+h2*60+m2 : h1*60+m1-h2*60-m2) % 1440 + 1440) % 1440;
+    return `${String(Math.floor(res/60)).padStart(2,'0')}:${String(res%60).padStart(2,'0')}`;
+  }
+  if (t === "hour_12h") {
+    let [h,m] = p.time1.split(":").map(Number); const [h2,m2] = p.time2.split(":").map(Number);
+    if (p.period==="PM" && h!==12) h+=12; else if (p.period==="AM" && h===12) h=0;
+    const res = ((p.op==='+' ? h*60+m+h2*60+m2 : h*60+m-h2*60-m2) % 1440 + 1440) % 1440;
+    const rh = Math.floor(res/60), rm = res%60;
+    return `${rh%12||12}:${String(rm).padStart(2,'0')} ${rh<12?'AM':'PM'}`;
+  }
+  if (t === "year_shift") return String(p.direction==="after" ? p.year+p.n : p.year-p.n);
+  if (t === "month_shift") {
+    const idx = MONTHS.findIndex(mn => mn.toLowerCase()===p.month.toLowerCase());
+    if (idx<0) return null;
+    return MONTHS[((p.direction==="after" ? idx+p.n : idx-p.n) % 12 + 12) % 12];
+  }
+  if (t === "week_id") return `Week ${isoWeek(p.year, p.month, p.day)}`;
+  if (t === "convert") {
+    const v = p.value;
+    if (p.from==="days"    && p.to==="minutes") return String(v*1440);
+    if (p.from==="days"    && p.to==="hours")   return String(v*24);
+    if (p.from==="minutes" && p.to==="hours")   { const h=v/60; return h===Math.floor(h)?String(h):String(Math.round(h*10000)/10000); }
+    if (p.from==="seconds" && p.to==="hours")   { const h=v/3600; return h===Math.floor(h)?String(h):String(Math.round(h*10000)/10000); }
+    return null;
+  }
+  if (t === "add_min_sec") {
+    const ts = p.s1+p.s2, tm = p.m1+p.m2+Math.floor(ts/60);
+    return `${tm} minutes ${ts%60} seconds`;
+  }
+  if (t === "sub_from_hm") {
+    const res_s = p.base_h*3600+p.base_m*60 - p.sub_m*60 - p.sub_s;
+    if (res_s<0) return null;
+    const rh=Math.floor(res_s/3600), rest=res_s%3600, rm=Math.floor(rest/60), rs=rest%60;
+    if (rh>0) return rs ? `${rh} hours ${rm} minutes ${rs} seconds` : `${rh} hours ${rm} minutes`;
+    return rs ? `${rm} minutes ${rs} seconds` : `${rm} minutes`;
+  }
+  if (t === "date_years_months") {
+    const mIdx = MONTHS.findIndex(mn => mn.toLowerCase()===p.base_month.toLowerCase());
+    if (mIdx<0) return null;
+    const totalM = (mIdx+1) + p.delta_months + p.delta_years*12;
+    return `${MONTHS[(totalM-1)%12]} ${p.base_year + Math.floor((totalM-1)/12)}`;
+  }
+  if (t === "date_days") {
+    const [mm,dd,yyyy] = p.base.split("-").map(Number);
+    const d = new Date(yyyy, mm-1, dd);
+    const r = new Date(p.op==="add" ? d.getTime()+p.days*86400000 : d.getTime()-p.days*86400000);
+    return `${String(r.getMonth()+1).padStart(2,'0')}-${String(r.getDate()).padStart(2,'0')}-${r.getFullYear()}`;
+  }
+  if (t === "date_months_days") {
+    const [mm,dd,yyyy] = p.base.split("-").map(Number);
+    const d = new Date(yyyy, mm-1, dd);
+    let m2 = d.getMonth() + (p.op==="add" ? p.months : -p.months);
+    let y2 = d.getFullYear() + Math.floor(m2/12);
+    m2 = ((m2%12)+12)%12;
+    const d2 = new Date(y2, m2, dd);
+    d2.setDate(d2.getDate() + (p.op==="add" ? p.days : -p.days));
+    return `${String(d2.getMonth()+1).padStart(2,'0')}-${String(d2.getDate()).padStart(2,'0')}-${d2.getFullYear()}`;
+  }
+  if (t === "date_weeks_days") {
+    const [mm,dd,yyyy] = p.base.split("-").map(Number);
+    const d = new Date(yyyy, mm-1, dd);
+    const totalDays = p.weeks*7+p.days;
+    const r = new Date(p.op==="add" ? d.getTime()+totalDays*86400000 : d.getTime()-totalDays*86400000);
+    return `${String(r.getMonth()+1).padStart(2,'0')}-${String(r.getDate()).padStart(2,'0')}-${r.getFullYear()}`;
+  }
+  if (t === "speed_dist_minutes") return String(Math.round(p.dist/p.speed*60));
+  if (t === "rest_walk") return String(Math.round(p.dist/p.speed*60 + (p.dist-1)*p.rest));
+  if (t === "tz_conversion") {
+    const so = TZ_OFFSET[p.src_tz], to = TZ_OFFSET[p.tgt_tz];
+    if (so===undefined || to===undefined) return null;
+    let h = p.hour;
+    if (p.period==="PM" && h!==12) h+=12; else if (p.period==="AM" && h===12) h=0;
+    const diff = to - so, new_h24 = ((h+diff)%24+24)%24;
+    const day_delta = Math.floor((h+diff)/24);
+    const pr = new_h24<12?"AM":"PM", rh12 = new_h24%12||12;
+    const mIdx = MONTHS.findIndex(mn => mn.toLowerCase()===p.month.toLowerCase());
+    if (mIdx<0) return `${rh12} ${pr}`;
+    const d = new Date(p.year, mIdx, p.day); d.setDate(d.getDate()+day_delta);
+    return `${rh12} ${pr} on ${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+  }
+  return null;
+}
+
+function matchOption(computed, options) {
+  if (!computed) return null;
+  const c = computed.toLowerCase().trim();
+  for (const [l, txt] of Object.entries(options)) if (txt.toLowerCase().trim()===c) return l;
+  for (const [l, txt] of Object.entries(options)) if (txt.toLowerCase().includes(c)||c.includes(txt.toLowerCase().trim())) return l;
+  const cT = c.split(/\s+/); let best=null, bestS=0;
+  for (const [l, txt] of Object.entries(options)) {
+    const tT = txt.toLowerCase().split(/\s+/);
+    const s = cT.filter(x=>tT.includes(x)).length / Math.max(cT.length, tT.length);
+    if (s>bestS) { bestS=s; best=l; }
+  }
+  return bestS>0.4 ? best : null;
+}
+
+function generateNoT(question, category, computed) {
+  const cat = category || "unknown"; let struct="", narrative=""; const ans = computed||"?";
+  if (cat==="Hour Adjustment (24h)" || cat==="Hour Adjustment (12h)") {
+    const m = question.match(/(\d{1,2}:\d{2}(?:\s*[AP]M)?)\s*([+\-−])\s*(\d{1,2}:\d{2})/i);
+    if (m) {
+      struct = `time1 = ${m[1]}\nop    = ${m[2]==='+'?'add':'subtract'}\ntime2 = ${m[3]}`;
+      narrative = `Starting from ${m[1]}, ${m[2]==='+'?'add':'subtract'} ${m[3]}.\nApply clock arithmetic modulo 24 hours.\nResult: ${computed}`;
+    }
+  } else if (cat==="Year Shift") {
+    const m = question.match(/(\d+)\s+years?\s+(after|before)\s+(\d{3,4})/i);
+    if (m) { struct=`base_year  = ${m[3]}\ndirection  = ${m[2]}\ndelta      = ${m[1]} years`; narrative=`${m[3]} ${m[2]==='after'?'+':'-'} ${m[1]} = ${computed}`; }
+  } else if (cat==="Month Shift") {
+    const m = question.match(new RegExp(`(\\d+)\\s+months?\\s+(after|before)\\s+(${MONTH_RE})`, 'i'));
+    if (m) {
+      const idx = MONTHS.findIndex(mn=>mn.toLowerCase()===m[3].toLowerCase());
+      struct=`base_month = ${m[3]} (index ${idx})\ndirection  = ${m[2]}\ndelta      = ${m[1]} months`;
+      narrative=`Month index: ${idx}\n${idx} ${m[2]==='after'?'+':'-'} ${m[1]} mod 12 = ${((idx+(m[2]==='after'?1:-1)*parseInt(m[1]))%12+12)%12}\nResult: ${computed}`;
+    }
+  } else if (cat==="Date Computation") {
+    struct=`question_type = date computation\ncategory = ${cat}`;
+    narrative=`Parsed date components from question.\nApplied calendar arithmetic.\nResult: ${computed}`;
+  } else if (cat==="Time Zone Conversion") {
+    struct=`operation = timezone conversion\ncategory = ${cat}`;
+    narrative=`Converted local time using UTC offsets.\nApplied day boundary adjustment.\nResult: ${computed}`;
+  } else {
+    struct=`category = ${cat}`;
+    narrative=`Extracted numeric values from question.\nApplied domain arithmetic.\nResult: ${computed}`;
+  }
+  return `STRUCTURE:\n${struct}\n\nNARRATIVE:\n${narrative}\n\nANSWER: ${ans}`;
+}
+
+function runEvaluation() {
+  const question = document.getElementById('question-input').value.trim();
+  if (!question) { alert("Please enter a question."); return; }
+  const gold   = document.getElementById('gold-input').value.trim();
+  const optA   = document.getElementById('opt-a').value.trim();
+  const optB   = document.getElementById('opt-b').value.trim();
+  const optC   = document.getElementById('opt-c').value.trim();
+  const optD   = document.getElementById('opt-d').value.trim();
+  const hasMCQ = optA||optB||optC||optD;
+  const options = hasMCQ ? {A:optA,B:optB,C:optC,D:optD} : null;
+
+  const btn = document.getElementById('run-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner"></div> Computing…';
+
+  const res = document.getElementById('results');
+  res.style.display = 'none'; res.classList.remove('visible');
+
+  setTimeout(() => {
+    try {
+      const category = detectCategory(question);
+      const params   = category ? parseParams(question, category) : null;
+      const computed = params ? execute(params) : null;
+      renderResults({ question, category, params, computed, options, gold, hasMCQ });
+    } catch(e) { renderError(e.message); }
+    finally {
+      btn.disabled = false;
+      btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Evaluate';
+    }
+  }, 160);
+}
+
+function renderResults({ question, category, params, computed, options, gold, hasMCQ }) {
+  const res = document.getElementById('results');
+  const hasP = !!params, hasR = !!computed;
+
+  // Pipeline
+  document.getElementById('pipeline-steps').innerHTML = `
+    <div class="pipe-step">
+      <div class="pipe-box done">Category</div>
+      <div class="pipe-label">${category||'unknown'}</div>
+    </div>
+    <div class="pipe-arrow ${hasP?'on':''}">→</div>
+    <div class="pipe-step">
+      <div class="pipe-box ${hasP?'done':''}">Extraction</div>
+      <div class="pipe-label">${hasP?'regex parser':'skipped'}</div>
+    </div>
+    <div class="pipe-arrow ${hasR?'on':''}">→</div>
+    <div class="pipe-step">
+      <div class="pipe-box ${hasR?'success':''}">Executor</div>
+      <div class="pipe-label">${hasR?'deterministic':hasP?'fallback':'n/a'}</div>
+    </div>
+    ${hasMCQ?`
+    <div class="pipe-arrow on">→</div>
+    <div class="pipe-step">
+      <div class="pipe-box ${computed?'done':''}">MCQ Match</div>
+      <div class="pipe-label">string match</div>
+    </div>`:''}
+  `;
+
+  // Result grid
+  const catClass = category?"":"unknown";
+  const catLabel = category||"Unrecognized";
+  document.getElementById('result-grid').innerHTML = `
+    <div class="result-cell">
+      <div class="result-lbl">Detected Category</div>
+      <span class="cat-badge ${catClass}">${catLabel}</span>
+    </div>
+    ${params?`
+    <div class="result-cell">
+      <div class="result-lbl">Extracted Parameters</div>
+      <div class="params-block">${syntaxHighlight(params)}</div>
+    </div>`:'<div class="result-cell"><div class="result-lbl">Parameters</div><span style="color:var(--muted);font-size:12px;">No structured params extracted</span></div>'}
+  `;
+
+  // Answer
+  const ansCard = document.getElementById('answer-card');
+  const ansVal  = document.getElementById('answer-value');
+  const ansSrc  = document.getElementById('answer-source-badge');
+  ansCard.style.display = 'flex';
+  if (computed) {
+    ansVal.textContent = computed;
+    ansVal.style.fontSize = '26px'; ansVal.style.color = 'var(--text)';
+    ansSrc.innerHTML = `<span class="ans-src src-exec">Deterministic</span>`;
+  } else if (category) {
+    ansVal.textContent = "Needs LLM";
+    ansVal.style.fontSize = '18px'; ansVal.style.color = 'var(--yellow)';
+    ansSrc.innerHTML = `<span class="ans-src src-llm">LLM Fallback</span>`;
+  } else {
+    ansVal.textContent = "Category not recognized";
+    ansVal.style.fontSize = '15px'; ansVal.style.color = 'var(--muted)';
+    ansSrc.innerHTML = '';
+  }
+
+  // MCQ
+  const mcqCard = document.getElementById('mcq-result-card');
+  let predicted = null;
+  if (hasMCQ && computed) {
+    const validOpts = Object.fromEntries(Object.entries(options).filter(([,v])=>v));
+    predicted = matchOption(computed, validOpts);
+    mcqCard.style.display = 'block';
+    document.getElementById('options-result').innerHTML = Object.entries(validOpts).map(([letter, text]) => {
+      const isPred = letter===predicted, isGold = gold && gold.toUpperCase()===letter;
+      let cls="opt-res-row", lCls="opt-res-letter default", tag="";
+      if (isPred && isGold) {
+        cls+=" gold-correct"; lCls="opt-res-letter gold-correct";
+        tag=`<span class="opt-res-tag t-gold">✓ Correct</span>`;
+      } else if (isPred) {
+        cls+=" predicted"; lCls="opt-res-letter predicted";
+        tag=`<span class="opt-res-tag t-pred">Predicted</span>`;
+      } else if (isGold) {
+        cls+=" gold-correct"; lCls="opt-res-letter gold-correct";
+        tag=`<span class="opt-res-tag t-gold">Gold</span>`;
+      }
+      if (isPred && gold && gold.toUpperCase()!==letter) {
+        cls="opt-res-row wrong-pred"; lCls="opt-res-letter wrong-pred";
+        tag=`<span class="opt-res-tag t-wrong">✗ Wrong</span>`;
+      }
+      return `<div class="${cls}"><div class="${lCls}">${letter}</div><div class="opt-res-text">${text}</div>${tag}</div>`;
+    }).join('');
+  } else {
+    mcqCard.style.display = 'none';
+  }
+
+  // Verdict
+  const vSec = document.getElementById('verdict-section');
+  if (gold && computed) {
+    let ok = false;
+    if (hasMCQ && predicted) ok = predicted.toUpperCase()===gold.toUpperCase();
+    else {
+      const nc=(computed||"").toLowerCase().trim().replace(/\s+/g,' ');
+      const ng=gold.toLowerCase().trim().replace(/\s+/g,' ');
+      ok = nc===ng || nc.includes(ng) || ng.includes(nc);
+    }
+    vSec.style.display='block';
+    vSec.innerHTML = ok
+      ? `<div class="verdict correct anim-in"><span class="verdict-icon">✓</span> Correct — predicted answer matches the gold label</div>`
+      : `<div class="verdict wrong anim-in"><span class="verdict-icon">✗</span> Wrong — computed <strong>${computed}</strong>, gold is <strong>${gold}</strong></div>`;
+  } else { vSec.style.display='none'; }
+
+  // Narrative
+  const narCard = document.getElementById('narrative-card');
+  if (computed||category) {
+    narCard.style.display = 'block';
+    document.getElementById('narrative-content').innerHTML = generateNoT(question, category, computed)
+      .replace(/^(STRUCTURE:|NARRATIVE:|ANSWER:.*)/gm, m=>`<span class="narrative-section">${m}</span>`);
+  } else { narCard.style.display='none'; }
+
+  res.style.display='block';
+  res.classList.add('visible','anim-in');
+  res.scrollIntoView({ behavior:'smooth', block:'start' });
+}
+
+function renderError(msg) {
+  const res = document.getElementById('results');
+  document.getElementById('pipeline-steps').innerHTML='';
+  document.getElementById('result-grid').innerHTML=`<div class="error-box result-cell full">Error: ${msg}</div>`;
+  ['answer-card','mcq-result-card','narrative-card','verdict-section'].forEach(id=>{
+    document.getElementById(id).style.display='none';
+  });
+  res.style.display='block'; res.classList.add('visible');
+}
+
+function syntaxHighlight(obj) {
+  return JSON.stringify(obj, null, 2)
+    .replace(/("task":\s*"[^"]*")/g, '<span style="color:#f472b6">$1</span>')
+    .replace(/"([^"]+)":/g, '<span style="color:#7dd3fc">"$1":</span>')
+    .replace(/:\s*"([^"]*)"/g, ': <span style="color:#86efac">"$1"</span>')
+    .replace(/:\s*(-?\d+(?:\.\d+)?)/g, ': <span style="color:#fcd34d">$1</span>');
+}
+
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey||e.metaKey) && e.key==='Enter') { e.preventDefault(); runEvaluation(); }
+});
+
+window.addEventListener('DOMContentLoaded', () => loadExample(0));
+</script>
+</body>
+</html>

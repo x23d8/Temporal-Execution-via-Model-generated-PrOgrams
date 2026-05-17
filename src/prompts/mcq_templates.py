@@ -80,12 +80,81 @@ def build_mcq_messages(
 
 # Stage 1: compute the raw answer from the question text alone.
 # The model must NOT see the options — we want an independent computation.
-COMPUTE_SYSTEM = (
+_COMPUTE_SYSTEM_BASE = (
     "You are a temporal arithmetic solver. "
-    "Solve the question step by step, then write your final answer on the last line "
-    "starting with 'Answer:'. "
-    "Example last line: Answer: 08:57"
+    "Work through the problem step by step, then on the very last line write exactly: "
+    "Answer: <value>. Do not write anything after the answer line."
 )
+
+# Per-category computation rules and exact answer format.
+# Injected into the system prompt so the model knows what format to produce.
+_CATEGORY_HINTS: dict[str, str] = {
+    "Year Shift": (
+        "Rule: add or subtract the given number of years directly to the base year. "
+        "Output format — just the year number. Example: Answer: 1518"
+    ),
+    "Month Shift": (
+        "Rule: count months forward or backward; wrap December→January and "
+        "January→December as needed. "
+        "Output format — full English month name only. Example: Answer: September"
+    ),
+    "Hour Adjustment (24h)": (
+        "Rule: convert both operands to total minutes, add or subtract, "
+        "then apply mod 1440 to stay within a 24-hour day. "
+        "Output format — HH:MM with zero-padding (24-hour clock). Example: Answer: 08:57"
+    ),
+    "Hour Adjustment (12h)": (
+        "Rule: convert to 24-hour minutes (12 AM = 0, 12 PM = 720; "
+        "PM hours other than noon add 720), compute, convert back. "
+        "12:00 result → 12:xx PM; 0:00 result → 12:xx AM; 1–11 AM/PM normally. "
+        "Output format — H:MM AM or H:MM PM, no leading zero on the hour. "
+        "Example: Answer: 4:37 AM"
+    ),
+    "Date Computation": (
+        "Rule: add or subtract the given days/months/years step by step. "
+        "Account for the exact number of days in each month "
+        "(Jan 31, Feb 28/29, Mar 31, Apr 30, May 31, Jun 30, "
+        "Jul 31, Aug 31, Sep 30, Oct 31, Nov 30, Dec 31). "
+        "February has 29 days in a leap year (divisible by 4, except centuries "
+        "unless also divisible by 400). "
+        "Output format — 'Month YYYY' when the question asks for month+year, "
+        "or 'MM/DD/YYYY' when a full date is required. Example: Answer: October 1806"
+    ),
+    "Time Computation": (
+        "Rule: convert all values to total seconds "
+        "(1 hour = 3600 s, 1 minute = 60 s), add or subtract, then convert back. "
+        "Output format — 'X minutes Y seconds' (Y may be 0). "
+        "Example: Answer: 197 minutes 0 seconds"
+    ),
+    "Time Zone Conversion": (
+        "Rule: use fixed UTC offsets (summer/DST-aware): "
+        "UTC/GMT=0, US/Eastern=-5, US/Central=-6, US/Mountain=-7, US/Pacific=-8, "
+        "US/Hawaii=-10, IST=+5.5, CET=+1, JST=+9, AEST=+10. "
+        "target_time = source_time + (target_offset − source_offset). "
+        "If the result crosses midnight, adjust the date by ±1 day accordingly. "
+        "Output format — 'H AM/PM on Month D, YYYY' (no leading zero). "
+        "Example: Answer: 10 AM on April 3, 1775"
+    ),
+    "Week Identification": (
+        "Rule: compute the day-of-year for the given date "
+        "(Jan 1 = day 1, cumulate days per month; check leap year for February). "
+        "Week number = ceil(day_of_year / 7), where week 1 covers Jan 1–7. "
+        "Output format — 'Week N'. Example: Answer: Week 27"
+    ),
+    "Application": (
+        "Rule: identify the problem type, then apply the correct formula. "
+        "Speed/distance/time: time = distance ÷ speed; distance = speed × time. "
+        "Age/elapsed-time: subtract the earlier date/age from the later one. "
+        "Output format — numeric value followed by its unit (minutes, hours, km, "
+        "'X years Y months', etc.). Example: Answer: 196"
+    ),
+}
+
+
+def _compute_system(category: str) -> str:
+    hint = _CATEGORY_HINTS.get(category, "")
+    return _COMPUTE_SYSTEM_BASE + ("\n\n" + hint if hint else "")
+
 
 # Stage 2: given the computed answer, pick the matching option letter.
 MATCH_SYSTEM = (
@@ -134,7 +203,8 @@ def build_compute_messages(
     shots: Sequence[McqSample] = (),
 ) -> list[ChatMessage]:
     """Stage 1: messages for computing the raw answer (no options shown)."""
-    msgs: list[ChatMessage] = [ChatMessage(role="system", content=COMPUTE_SYSTEM)]
+    system = _compute_system(sample.get("category", ""))
+    msgs: list[ChatMessage] = [ChatMessage(role="system", content=system)]
     for shot in shots:
         msgs.append(ChatMessage(role="user",      content=render_compute_user(shot)))
         msgs.append(ChatMessage(role="assistant", content=render_compute_assistant(shot)))
